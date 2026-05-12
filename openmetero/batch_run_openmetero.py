@@ -12,7 +12,14 @@ ROOT_DIR = SCRIPT_DIR.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from common import configure_run_logger, log_exception, log_run_end, log_run_start
+from common import (
+    add_log_dir_argument,
+    configure_run_logger,
+    log_exception,
+    log_run_end,
+    log_run_start,
+    resolve_log_root,
+)
 
 
 def parse_list_argument(values):
@@ -77,6 +84,7 @@ def parse_args():
         default=4,
         help="Number of parallel workers. Default: 4",
     )
+    add_log_dir_argument(parser, ROOT_DIR / "logs")
     return parser.parse_args()
 
 
@@ -114,6 +122,7 @@ def run_one_point(
     end_date,
     timezone,
     hourly_vars,
+    log_dir,
     logger,
 ):
     output_path = build_output_path(output_dir, latitude, longitude, row_index)
@@ -136,6 +145,7 @@ def run_one_point(
 
     for variable in hourly_vars:
         command.extend(["--hourly", variable])
+    command.extend(["--log-dir", str(log_dir)])
 
     logger.info(
         "Starting batch item %s/%s for lat=%s lon=%s output=%s",
@@ -152,8 +162,8 @@ def run_one_point(
 
 
 def main():
-    logger = configure_run_logger("openmeteo.batch", ROOT_DIR / "logs", run_name="openmeteo_batch")
     args = parse_args()
+    logger = configure_run_logger("openmeteo.batch", resolve_log_root(args.log_dir), run_name="openmeteo_batch")
 
     input_path = Path(args.input).expanduser()
     if not input_path.is_absolute():
@@ -177,6 +187,7 @@ def main():
         end_date=args.end_date,
         timezone=args.timezone,
         max_workers=args.max_workers,
+        log_dir=args.log_dir,
     )
 
     try:
@@ -211,6 +222,7 @@ def main():
                         args.end_date,
                         args.timezone,
                         hourly_vars,
+                        args.log_dir,
                         logger,
                     )
                 )

@@ -9,7 +9,14 @@ ROOT_DIR = SCRIPT_DIR.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from common import configure_run_logger, log_exception, log_run_end, log_run_start
+from common import (
+    add_log_dir_argument,
+    configure_run_logger,
+    log_exception,
+    log_run_end,
+    log_run_start,
+    resolve_log_root,
+)
 
 
 def parse_args():
@@ -31,6 +38,7 @@ def parse_args():
         default="lonlat_list.xlsx",
         help="Output file path. Supports .xlsx or .csv. Default: lonlat_list.xlsx",
     )
+    add_log_dir_argument(parser, ROOT_DIR / "logs")
     return parser.parse_args()
 
 
@@ -58,8 +66,8 @@ def build_coordinate_list(west, south, east, north, resolution):
 
 
 def main():
-    logger = configure_run_logger("openmeteo.grid", ROOT_DIR / "logs", run_name="openmeteo_grid")
     args = parse_args()
+    logger = configure_run_logger("openmeteo.grid", resolve_log_root(args.log_dir), run_name="openmeteo_grid")
     log_run_start(
         logger,
         "Longitude/latitude grid generation started",
@@ -69,6 +77,7 @@ def main():
         north=args.north,
         resolution=args.resolution,
         output=args.output,
+        log_dir=args.log_dir,
     )
 
     try:

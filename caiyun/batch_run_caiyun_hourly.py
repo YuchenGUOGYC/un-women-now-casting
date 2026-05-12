@@ -13,7 +13,14 @@ ROOT_DIR = SCRIPT_DIR.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from common import configure_run_logger, log_exception, log_run_end, log_run_start
+from common import (
+    add_log_dir_argument,
+    configure_run_logger,
+    log_exception,
+    log_run_end,
+    log_run_start,
+    resolve_log_root,
+)
 
 
 def parse_list_argument(values):
@@ -87,6 +94,7 @@ def parse_args():
         default=60,
         help="Timeout passed to caiyun_hourly.py. Default: 60",
     )
+    add_log_dir_argument(parser, ROOT_DIR / "logs")
     return parser.parse_args()
 
 
@@ -189,6 +197,7 @@ def run_one_point(
     hourlysteps,
     fields,
     timeout,
+    log_dir,
     logger,
 ):
     output_path = build_output_path(output_dir, latitude, longitude, row_index)
@@ -212,6 +221,7 @@ def run_one_point(
 
     for field_name in fields:
         command.extend(["--fields", field_name])
+    command.extend(["--log-dir", str(log_dir)])
 
     logger.info(
         "Starting Caiyun batch item %s/%s for lat=%s lon=%s output=%s",
@@ -228,8 +238,8 @@ def run_one_point(
 
 
 def main():
-    logger = configure_run_logger("caiyun.batch", ROOT_DIR / "logs", run_name="caiyun_batch")
     args = parse_args()
+    logger = configure_run_logger("caiyun.batch", resolve_log_root(args.log_dir), run_name="caiyun_batch")
 
     input_path = Path(args.input).expanduser()
     if not input_path.is_absolute():
@@ -252,6 +262,7 @@ def main():
         output_dir=output_dir,
         hourlysteps=args.hourlysteps,
         max_workers=args.max_workers,
+        log_dir=args.log_dir,
     )
 
     try:
@@ -286,6 +297,7 @@ def main():
                         args.hourlysteps,
                         fields,
                         args.timeout,
+                        args.log_dir,
                         logger,
                     )
                 )

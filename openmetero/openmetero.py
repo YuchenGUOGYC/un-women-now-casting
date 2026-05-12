@@ -13,7 +13,14 @@ ROOT_DIR = SCRIPT_DIR.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from common import configure_run_logger, log_exception, log_run_end, log_run_start
+from common import (
+    add_log_dir_argument,
+    configure_run_logger,
+    log_exception,
+    log_run_end,
+    log_run_start,
+    resolve_log_root,
+)
 
 DEFAULT_HOURLY_VARS = [
     "precipitation_probability",
@@ -65,12 +72,13 @@ def parse_args():
         default="openmeteo_hourly.xlsx",
         help="Output Excel path. Default: openmeteo_hourly.xlsx",
     )
+    add_log_dir_argument(parser, ROOT_DIR / "logs")
     return parser.parse_args()
 
 
 def main() -> int:
-    logger = configure_run_logger("openmeteo.single", ROOT_DIR / "logs", run_name="openmeteo")
     args = parse_args()
+    logger = configure_run_logger("openmeteo.single", resolve_log_root(args.log_dir), run_name="openmeteo")
     hourly_vars = parse_list_argument(args.hourly) or DEFAULT_HOURLY_VARS
     log_run_start(
         logger,
@@ -81,6 +89,7 @@ def main() -> int:
         end_date=args.end_date,
         timezone=args.timezone,
         hourly_vars=hourly_vars,
+        log_dir=args.log_dir,
     )
 
     try:

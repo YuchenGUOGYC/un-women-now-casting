@@ -12,7 +12,14 @@ if str(SCRIPT_DIR) not in sys.path:
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from common import configure_run_logger, log_exception, log_run_end, log_run_start
+from common import (
+    add_log_dir_argument,
+    configure_run_logger,
+    log_exception,
+    log_run_end,
+    log_run_start,
+    resolve_log_root,
+)
 from wxpusher_notify import ConfigError, send_notification
 
 
@@ -33,18 +40,20 @@ def build_parser() -> argparse.ArgumentParser:
         default="现在下雨",
         help="Notification content mapped to WxPusher content.",
     )
+    add_log_dir_argument(parser, ROOT_DIR / "logs")
     return parser
 
 
 def main() -> int:
-    logger = configure_run_logger("wxpusher.send", ROOT_DIR / "logs", run_name="wxpusher_send")
     parser = build_parser()
     args = parser.parse_args()
+    logger = configure_run_logger("wxpusher.send", resolve_log_root(args.log_dir), run_name="wxpusher_send")
     log_run_start(
         logger,
         "WxPusher notification started",
         config_path=args.config,
         title=args.title,
+        log_dir=args.log_dir,
     )
 
     try:

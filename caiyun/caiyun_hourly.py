@@ -14,7 +14,14 @@ ROOT_DIR = SCRIPT_DIR.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from common import configure_run_logger, log_exception, log_run_end, log_run_start
+from common import (
+    add_log_dir_argument,
+    configure_run_logger,
+    log_exception,
+    log_run_end,
+    log_run_start,
+    resolve_log_root,
+)
 
 API_VERSION = "v2.6"
 API_BASE_URL = "https://api.caiyunapp.com"
@@ -79,6 +86,7 @@ def parse_args():
         action="store_true",
         help="Write output directly to the target folder without creating a dated subdirectory.",
     )
+    add_log_dir_argument(parser, ROOT_DIR / "logs")
     return parser.parse_args()
 
 
@@ -186,8 +194,8 @@ def write_csv(output_path, rows):
 
 
 def main():
-    logger = configure_run_logger("caiyun.hourly", ROOT_DIR / "logs", run_name="caiyun_hourly")
     args = parse_args()
+    logger = configure_run_logger("caiyun.hourly", resolve_log_root(args.log_dir), run_name="caiyun_hourly")
     selected_fields = parse_list_argument(args.fields) or DEFAULT_FIELDS
     log_run_start(
         logger,
@@ -196,6 +204,7 @@ def main():
         longitude=args.longitude,
         hourlysteps=args.hourlysteps,
         selected_fields=selected_fields,
+        log_dir=args.log_dir,
     )
     try:
         api_url = build_api_url(args.token, args.longitude, args.latitude, args.hourlysteps)

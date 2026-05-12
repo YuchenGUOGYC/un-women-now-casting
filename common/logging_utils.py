@@ -23,6 +23,21 @@ def _normalize_for_log(value: Any) -> str:
         return repr(value)
 
 
+def add_log_dir_argument(parser: Any, default_log_root: Path) -> None:
+    parser.add_argument(
+        "--log-dir",
+        default=str(default_log_root),
+        help=f"Directory for internal application logs. Default: {default_log_root}",
+    )
+
+
+def resolve_log_root(log_dir: str | Path) -> Path:
+    log_root = Path(log_dir).expanduser()
+    if not log_root.is_absolute():
+        log_root = Path.cwd() / log_root
+    return log_root
+
+
 def configure_run_logger(
     logger_name: str,
     log_root: Path,

@@ -12,7 +12,14 @@ ROOT_DIR = SCRIPT_DIR.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from common import configure_run_logger, log_exception, log_run_end, log_run_start
+from common import (
+    add_log_dir_argument,
+    configure_run_logger,
+    log_exception,
+    log_run_end,
+    log_run_start,
+    resolve_log_root,
+)
 
 API_URL = "https://api.caiyunapp.com/v1/radar/cndata/forecastp"
 BEIJING_TZ = timezone(timedelta(hours=8))
@@ -49,6 +56,7 @@ def parse_args():
         action="store_true",
         help="Overwrite existing .nc files if they already exist.",
     )
+    add_log_dir_argument(parser, ROOT_DIR / "logs")
     return parser.parse_args()
 
 
@@ -94,8 +102,8 @@ def pick_dataset(cndata_items, variable, province_id):
 
 
 def main():
-    logger = configure_run_logger("caiyun.radar", ROOT_DIR / "logs", run_name="caiyun_radar")
     args = parse_args()
+    logger = configure_run_logger("caiyun.radar", resolve_log_root(args.log_dir), run_name="caiyun_radar")
     output_dir = ensure_absolute_path(args.output_dir)
     log_run_start(
         logger,
@@ -104,6 +112,7 @@ def main():
         variable=args.variable,
         output_dir=output_dir,
         overwrite=args.overwrite,
+        log_dir=args.log_dir,
     )
 
     try:
