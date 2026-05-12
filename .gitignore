@@ -1,0 +1,10 @@
+wxpusher.config.json
+wxpusher.config.yaml
+wxpusher.config.yml
+**/wxpusher.config.json
+**/wxpusher.config.yaml
+**/wxpusher.config.yml
+__pycache__/
+**/__pycache__/
+.cache*
+logs/

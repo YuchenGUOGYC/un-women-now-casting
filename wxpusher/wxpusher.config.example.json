@@ -1,0 +1,11 @@
+{
+  "provider": "wxpusher",
+  "timeout_seconds": 10,
+  "wxpusher": {
+    "app_token": "AT_0PhiKedMhrZAxZlA8jKEOghfbz67Uji2",
+    "uids": [
+      "UID_HDuVh3z5yQn3RYX0qhqiD82WXVyD"
+    ],
+    "content_type": 1
+  }
+}

@@ -1,0 +1,13 @@
+name: model-unwomen
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pandas
+  - openpyxl
+  - pyyaml
+  - pip:
+      - openmeteo-requests
+      - requests-cache
+      - retry-requests
