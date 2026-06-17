@@ -84,6 +84,51 @@ def parse_args():
         default=4,
         help="Number of parallel workers. Default: 4",
     )
+    parser.add_argument(
+        "--run-alert-after-download",
+        action="store_true",
+        help="Run model/run_precipitation_alert.py after the Open-Meteo batch completes successfully.",
+    )
+    parser.add_argument(
+        "--alert-script",
+        default=str(ROOT_DIR / "model" / "run_precipitation_alert.py"),
+        help="Path to run_precipitation_alert.py.",
+    )
+    parser.add_argument(
+        "--alert-python-exe",
+        default=sys.executable,
+        help="Python executable used to run the alert script. Default: current Python.",
+    )
+    parser.add_argument(
+        "--alert-openmeteo-dir",
+        help="Override Open-Meteo root output directory passed to the alert script. Default: current --output-dir.",
+    )
+    parser.add_argument(
+        "--alert-caiyun-dir",
+        help="Optional Caiyun root output directory passed to the alert script.",
+    )
+    parser.add_argument(
+        "--alert-wxpusher-config",
+        help="WxPusher config path passed to the alert script.",
+    )
+    parser.add_argument(
+        "--alert-state-file",
+        help="Optional state file path for alert deduplication.",
+    )
+    parser.add_argument(
+        "--alert-threshold",
+        type=float,
+        help="Optional precipitation threshold passed to the alert script.",
+    )
+    parser.add_argument(
+        "--alert-resend-hours",
+        type=float,
+        help="Optional resend interval in hours passed to the alert script.",
+    )
+    parser.add_argument(
+        "--alert-title",
+        help="Optional notification title passed to the alert script.",
+    )
     add_log_dir_argument(parser, ROOT_DIR / "logs")
     return parser.parse_args()
 
@@ -159,6 +204,42 @@ def run_one_point(
     subprocess.run(command, check=True)
     logger.info("Finished batch item %s/%s -> %s", row_index, total, output_path)
     return output_path
+
+
+def maybe_run_alert_after_download(args, logger):
+    if not args.run_alert_after_download:
+        return
+
+    alert_script = Path(args.alert_script).expanduser()
+    if not alert_script.is_absolute():
+        alert_script = Path.cwd() / alert_script
+
+    openmeteo_dir = args.alert_openmeteo_dir or args.output_dir
+    command = [
+        args.alert_python_exe,
+        str(alert_script),
+        "--openmeteo-dir",
+        openmeteo_dir,
+        "--log-dir",
+        str(args.log_dir),
+    ]
+
+    if args.alert_caiyun_dir:
+        command.extend(["--caiyun-dir", args.alert_caiyun_dir])
+    if args.alert_wxpusher_config:
+        command.extend(["--wxpusher-config", args.alert_wxpusher_config])
+    if args.alert_state_file:
+        command.extend(["--state-file", args.alert_state_file])
+    if args.alert_threshold is not None:
+        command.extend(["--threshold", str(args.alert_threshold)])
+    if args.alert_resend_hours is not None:
+        command.extend(["--resend-hours", str(args.alert_resend_hours)])
+    if args.alert_title:
+        command.extend(["--title", args.alert_title])
+
+    logger.info("Running alert workflow after Open-Meteo batch: %s", command)
+    subprocess.run(command, check=True)
+    logger.info("Alert workflow completed after Open-Meteo batch")
 
 
 def main():
@@ -237,6 +318,7 @@ def main():
             output_dir=output_dir,
             total_points=total,
         )
+        maybe_run_alert_after_download(args, logger)
         print(f"Batch run completed. Files saved to: {output_dir}")
     except Exception as exc:
         log_exception(logger, "Open-Meteo batch failed", exc)

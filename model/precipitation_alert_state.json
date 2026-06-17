@@ -1,0 +1,258 @@
+{
+  "last_checked_at": "2026-06-17T01:58:58.012498+08:00",
+  "last_alert_key": "{\"date\": \"2026-06-17\", \"earliest_rain_time\": \"2026-06-17 00:00:00\", \"matched_files\": [\"openmeteo_row001_lat28p102200_lon105p618900.xlsx\", \"openmeteo_row002_lat28p102200_lon105p668900.xlsx\", \"openmeteo_row003_lat28p102200_lon105p718900.xlsx\", \"openmeteo_row004_lat28p102200_lon105p768900.xlsx\", \"openmeteo_row005_lat28p102200_lon105p818900.xlsx\", \"openmeteo_row006_lat28p102200_lon105p868900.xlsx\", \"openmeteo_row007_lat28p152200_lon105p618900.xlsx\", \"openmeteo_row008_lat28p152200_lon105p668900.xlsx\", \"openmeteo_row009_lat28p152200_lon105p718900.xlsx\", \"openmeteo_row010_lat28p152200_lon105p768900.xlsx\", \"openmeteo_row011_lat28p152200_lon105p818900.xlsx\", \"openmeteo_row012_lat28p152200_lon105p868900.xlsx\", \"openmeteo_row013_lat28p202200_lon105p618900.xlsx\", \"openmeteo_row014_lat28p202200_lon105p668900.xlsx\", \"openmeteo_row015_lat28p202200_lon105p718900.xlsx\", \"openmeteo_row016_lat28p202200_lon105p768900.xlsx\", \"openmeteo_row017_lat28p202200_lon105p818900.xlsx\", \"openmeteo_row018_lat28p202200_lon105p868900.xlsx\", \"openmeteo_row019_lat28p252200_lon105p618900.xlsx\", \"openmeteo_row020_lat28p252200_lon105p668900.xlsx\", \"openmeteo_row021_lat28p252200_lon105p718900.xlsx\", \"openmeteo_row022_lat28p252200_lon105p768900.xlsx\", \"openmeteo_row023_lat28p252200_lon105p818900.xlsx\", \"openmeteo_row024_lat28p252200_lon105p868900.xlsx\", \"openmeteo_row025_lat28p302200_lon105p618900.xlsx\", \"openmeteo_row026_lat28p302200_lon105p668900.xlsx\", \"openmeteo_row027_lat28p302200_lon105p718900.xlsx\", \"openmeteo_row028_lat28p302200_lon105p768900.xlsx\", \"openmeteo_row029_lat28p302200_lon105p818900.xlsx\", \"openmeteo_row030_lat28p302200_lon105p868900.xlsx\"], \"max_precipitation\": 6.3, \"sources\": [\"openmeteo\"]}",
+  "last_alert_at": "2026-06-17T01:58:58.012498+08:00",
+  "last_notification_sent": true,
+  "last_notification_reason": "new_event",
+  "last_summary": {
+    "has_precipitation": true,
+    "threshold": 0.0,
+    "target_date": "2026-06-17",
+    "checked_files": 30,
+    "matched_files": 30,
+    "max_precipitation": 6.300000190734863,
+    "earliest_rain_time": "2026-06-17 00:00:00",
+    "records": [
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row001_lat28p102200_lon105p618900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 3.299999952316284,
+        "rainy_row_count": 18,
+        "first_rain_time": "2026-06-17 02:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row002_lat28p102200_lon105p668900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 3.299999952316284,
+        "rainy_row_count": 18,
+        "first_rain_time": "2026-06-17 02:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row003_lat28p102200_lon105p718900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 3.599999904632568,
+        "rainy_row_count": 18,
+        "first_rain_time": "2026-06-17 03:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row004_lat28p102200_lon105p768900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 3.200000047683716,
+        "rainy_row_count": 18,
+        "first_rain_time": "2026-06-17 03:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row005_lat28p102200_lon105p818900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 3.200000047683716,
+        "rainy_row_count": 18,
+        "first_rain_time": "2026-06-17 03:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row006_lat28p102200_lon105p868900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 3.200000047683716,
+        "rainy_row_count": 18,
+        "first_rain_time": "2026-06-17 03:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row007_lat28p152200_lon105p618900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 3.400000095367432,
+        "rainy_row_count": 17,
+        "first_rain_time": "2026-06-17 02:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row008_lat28p152200_lon105p668900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 3.400000095367432,
+        "rainy_row_count": 17,
+        "first_rain_time": "2026-06-17 02:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row009_lat28p152200_lon105p718900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 3.400000095367432,
+        "rainy_row_count": 17,
+        "first_rain_time": "2026-06-17 02:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row010_lat28p152200_lon105p768900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 3.200000047683716,
+        "rainy_row_count": 18,
+        "first_rain_time": "2026-06-17 03:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row011_lat28p152200_lon105p818900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 3.200000047683716,
+        "rainy_row_count": 18,
+        "first_rain_time": "2026-06-17 03:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row012_lat28p152200_lon105p868900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 3.200000047683716,
+        "rainy_row_count": 18,
+        "first_rain_time": "2026-06-17 03:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row013_lat28p202200_lon105p618900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 4.900000095367432,
+        "rainy_row_count": 18,
+        "first_rain_time": "2026-06-17 02:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row014_lat28p202200_lon105p668900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 6.300000190734863,
+        "rainy_row_count": 21,
+        "first_rain_time": "2026-06-17 02:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row015_lat28p202200_lon105p718900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 4.900000095367432,
+        "rainy_row_count": 18,
+        "first_rain_time": "2026-06-17 02:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row016_lat28p202200_lon105p768900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 5.199999809265137,
+        "rainy_row_count": 19,
+        "first_rain_time": "2026-06-17 00:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row017_lat28p202200_lon105p818900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 5.199999809265137,
+        "rainy_row_count": 19,
+        "first_rain_time": "2026-06-17 00:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row018_lat28p202200_lon105p868900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 5.199999809265137,
+        "rainy_row_count": 19,
+        "first_rain_time": "2026-06-17 00:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row019_lat28p252200_lon105p618900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 6.300000190734863,
+        "rainy_row_count": 21,
+        "first_rain_time": "2026-06-17 02:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row020_lat28p252200_lon105p668900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 4.900000095367432,
+        "rainy_row_count": 18,
+        "first_rain_time": "2026-06-17 02:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row021_lat28p252200_lon105p718900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 4.800000190734863,
+        "rainy_row_count": 17,
+        "first_rain_time": "2026-06-17 03:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row022_lat28p252200_lon105p768900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 4.800000190734863,
+        "rainy_row_count": 17,
+        "first_rain_time": "2026-06-17 03:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row023_lat28p252200_lon105p818900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 5.199999809265137,
+        "rainy_row_count": 19,
+        "first_rain_time": "2026-06-17 00:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row024_lat28p252200_lon105p868900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 4.699999809265137,
+        "rainy_row_count": 19,
+        "first_rain_time": "2026-06-17 02:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row025_lat28p302200_lon105p618900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 5.800000190734863,
+        "rainy_row_count": 23,
+        "first_rain_time": "2026-06-17 01:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row026_lat28p302200_lon105p668900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 4.800000190734863,
+        "rainy_row_count": 17,
+        "first_rain_time": "2026-06-17 03:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row027_lat28p302200_lon105p718900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 4.800000190734863,
+        "rainy_row_count": 17,
+        "first_rain_time": "2026-06-17 03:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row028_lat28p302200_lon105p768900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 4.800000190734863,
+        "rainy_row_count": 17,
+        "first_rain_time": "2026-06-17 03:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row029_lat28p302200_lon105p818900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 4.699999809265137,
+        "rainy_row_count": 19,
+        "first_rain_time": "2026-06-17 02:00:00"
+      },
+      {
+        "source": "openmeteo",
+        "file_path": "C:\\Users\\YuchenGuo\\OneDrive - World Resources Institute\\Desktop\\test_out\\un\\openmeteo_batch\\2026-06-17\\openmeteo_row030_lat28p302200_lon105p868900.xlsx",
+        "matched_column": "precipitation",
+        "max_precipitation": 4.699999809265137,
+        "rainy_row_count": 19,
+        "first_rain_time": "2026-06-17 02:00:00"
+      }
+    ]
+  }
+}
