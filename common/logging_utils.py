@@ -6,6 +6,10 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
+
+
+BEIJING_TZ = ZoneInfo("Asia/Shanghai")
 
 
 def _json_default(value: Any) -> str:
@@ -53,7 +57,7 @@ def configure_run_logger(
     logger.propagate = False
 
     run_label = run_name or logger_name.replace(".", "_")
-    dated_dir = Path(log_root).expanduser() / datetime.now().strftime("%Y-%m-%d")
+    dated_dir = Path(log_root).expanduser() / datetime.now(tz=BEIJING_TZ).strftime("%Y-%m-%d")
     dated_dir.mkdir(parents=True, exist_ok=True)
     log_path = dated_dir / f"{run_label}.log"
 
