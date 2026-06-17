@@ -5,8 +5,8 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from xml.etree import ElementTree as ET
-from zipfile import ZipFile
+
+import pandas as pd
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT_DIR = SCRIPT_DIR.parent
@@ -150,7 +150,9 @@ def read_coordinate_table(input_path):
             reader = csv.DictReader(csvfile)
             rows = [normalize_row_keys(row) for row in reader]
     else:
-        rows = read_xlsx_rows(input_path)
+        dataframe = pd.read_excel(input_path)
+        dataframe.columns = [str(col).strip().lower() for col in dataframe.columns]
+        rows = [normalize_row_keys(row) for row in dataframe.to_dict(orient="records")]
 
     required_columns = {"latitude", "longitude"}
     available_columns = set(rows[0].keys()) if rows else set()
@@ -163,66 +165,6 @@ def read_coordinate_table(input_path):
 
 def normalize_row_keys(row):
     return {str(key).strip().lower(): value for key, value in row.items()}
-
-
-def read_xlsx_rows(input_path):
-    namespace = {"main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
-    with ZipFile(input_path) as workbook_zip:
-        shared_strings = []
-        if "xl/sharedStrings.xml" in workbook_zip.namelist():
-            shared_root = ET.fromstring(workbook_zip.read("xl/sharedStrings.xml"))
-            for item in shared_root.findall("main:si", namespace):
-                text_parts = [node.text or "" for node in item.findall(".//main:t", namespace)]
-                shared_strings.append("".join(text_parts))
-
-        sheet_root = ET.fromstring(workbook_zip.read("xl/worksheets/sheet1.xml"))
-        rows_xml = sheet_root.findall(".//main:sheetData/main:row", namespace)
-
-        values = []
-        for row_xml in rows_xml:
-            row_values = []
-            current_index = 0
-            for cell in row_xml.findall("main:c", namespace):
-                cell_ref = cell.attrib.get("r", "")
-                target_index = column_letters_to_index("".join(ch for ch in cell_ref if ch.isalpha()))
-                while current_index < target_index:
-                    row_values.append(None)
-                    current_index += 1
-
-                cell_type = cell.attrib.get("t")
-                value_node = cell.find("main:v", namespace)
-                if value_node is None:
-                    cell_value = ""
-                elif cell_type == "s":
-                    cell_value = shared_strings[int(value_node.text)]
-                else:
-                    cell_value = value_node.text
-
-                row_values.append(cell_value)
-                current_index += 1
-
-            values.append(row_values)
-
-    if not values:
-        return []
-
-    headers = [str(cell).strip().lower() if cell is not None else "" for cell in values[0]]
-    rows = []
-    for value_row in values[1:]:
-        row = {}
-        for index, header in enumerate(headers):
-            if header:
-                row[header] = value_row[index] if index < len(value_row) else None
-        rows.append(row)
-    return rows
-
-
-def column_letters_to_index(letters):
-    result = 0
-    for char in letters:
-        result = result * 26 + (ord(char.upper()) - ord("A") + 1)
-    return max(result - 1, 0)
-
 
 def build_output_path(output_dir, latitude, longitude, row_number):
     safe_lat = f"{latitude:.6f}".replace("-", "m").replace(".", "p")
