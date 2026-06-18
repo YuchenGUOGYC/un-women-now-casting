@@ -161,6 +161,13 @@ def get_severity_name(value: float) -> str:
     return "小雨"
 
 
+def normalize_timestamp_value(value) -> pd.Timestamp:
+    timestamp = pd.Timestamp(value)
+    if timestamp.tzinfo is not None:
+        return timestamp.tz_convert(BEIJING_TZ).tz_localize(None)
+    return timestamp
+
+
 def detect_precipitation_in_file(
     file_path: Path,
     source: str,
@@ -196,7 +203,7 @@ def detect_precipitation_in_file(
                     "source": source,
                     "region_name": region_name,
                     "file_path": str(file_path),
-                    "timestamp": pd.to_datetime(row[time_column]),
+                    "timestamp": normalize_timestamp_value(row[time_column]),
                     "precipitation": float(numeric_series.loc[row_index]),
                     "longitude": longitude,
                     "latitude": latitude,
