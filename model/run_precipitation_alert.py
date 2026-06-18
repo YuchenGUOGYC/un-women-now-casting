@@ -83,7 +83,7 @@ def build_notification_message(summary: DetectionSummary) -> str:
     headline_parts = [
         f"{summary.target_date} 研究区检测到降水。",
         f"最高级别：{summary.highest_severity or '小雨'}。",
-        f"最大点位降水值：{summary.max_precipitation:.2f} mm。",
+        f"最大点位降水值：{summary.max_precipitation:.1f} mm。",
     ]
     if summary.earliest_rain_time and summary.latest_rain_time:
         headline_parts.append(f"整体时段：{format_time_window(summary.earliest_rain_time, summary.latest_rain_time)}。")

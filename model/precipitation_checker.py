@@ -30,7 +30,7 @@ from common import (
 
 BEIJING_TZ = ZoneInfo("Asia/Shanghai")
 CAIYUN_PRECIP_COLUMNS = ["precipitation"]
-OPENMETEO_PRECIP_COLUMNS = ["precipitation", "rain", "showers"]
+OPENMETEO_PRECIP_COLUMNS = ["rain"]
 FILENAME_COORD_PATTERN = re.compile(r"lat(?P<lat>[mp\d]+)_lon(?P<lon>[mp\d]+)")
 SEVERITY_LEVELS = [
     (50.0, "暴雨"),
@@ -168,6 +168,10 @@ def normalize_timestamp_value(value) -> pd.Timestamp:
     return timestamp
 
 
+def round_precipitation(value: float) -> float:
+    return round(float(value), 1)
+
+
 def detect_precipitation_in_file(
     file_path: Path,
     source: str,
@@ -204,7 +208,7 @@ def detect_precipitation_in_file(
                     "region_name": region_name,
                     "file_path": str(file_path),
                     "timestamp": normalize_timestamp_value(row[time_column]),
-                    "precipitation": float(numeric_series.loc[row_index]),
+                    "precipitation": round_precipitation(numeric_series.loc[row_index]),
                     "longitude": longitude,
                     "latitude": latitude,
                 }
@@ -216,7 +220,7 @@ def detect_precipitation_in_file(
             file_path=str(file_path),
             region_name=region_name,
             matched_column=matched_column_name,
-            max_precipitation=float(numeric_series.max()),
+            max_precipitation=round_precipitation(numeric_series.max()),
             rainy_row_count=int((numeric_series > threshold).sum()),
             first_rain_time=first_rain_time,
         ),
@@ -229,11 +233,20 @@ def build_region_windows(rainy_hits: list[dict]) -> list[RegionRainWindow]:
         return []
 
     dataframe = pd.DataFrame(rainy_hits)
-    grouped = (
-        dataframe.groupby(["region_name", "timestamp"], as_index=False)
+    source_grouped = (
+        dataframe.groupby(["region_name", "timestamp", "source"], as_index=False)
         .agg(
-            hour_precipitation=("precipitation", "max"),
+            precipitation=("precipitation", "max"),
             affected_point_count=("file_path", "nunique"),
+        )
+        .sort_values(["region_name", "timestamp", "source"])
+    )
+
+    grouped = (
+        source_grouped.groupby(["region_name", "timestamp"], as_index=False)
+        .agg(
+            hour_precipitation=("precipitation", lambda values: round_precipitation(pd.Series(values).mean())),
+            affected_point_count=("affected_point_count", "max"),
             sources=("source", lambda values: sorted(set(values))),
         )
         .sort_values(["region_name", "timestamp"])
@@ -260,7 +273,7 @@ def build_region_windows(rainy_hits: list[dict]) -> list[RegionRainWindow]:
 def _build_window_from_rows(region_name: str, rows: list) -> RegionRainWindow:
     start_timestamp = pd.Timestamp(rows[0].timestamp)
     end_timestamp = pd.Timestamp(rows[-1].timestamp)
-    accumulated_precipitation = sum(float(row.hour_precipitation) for row in rows)
+    accumulated_precipitation = round_precipitation(sum(float(row.hour_precipitation) for row in rows))
     sources = sorted({source for row in rows for source in row.sources})
     affected_point_count = max(int(row.affected_point_count) for row in rows)
     return RegionRainWindow(
@@ -322,7 +335,7 @@ def build_summary(
     target_date: str,
     rainy_hits: list[dict],
 ) -> DetectionSummary:
-    max_precipitation = max((record.max_precipitation for record in records), default=0.0)
+    max_precipitation = round_precipitation(max((record.max_precipitation for record in records), default=0.0))
     region_windows = build_region_windows(rainy_hits)
     hit_regions = sorted({window.region_name for window in region_windows})
     highest_severity = None
