@@ -108,6 +108,10 @@ def parse_args():
         help="Optional Caiyun root output directory passed to the alert script.",
     )
     parser.add_argument(
+        "--alert-coord-file",
+        help="Optional coordinate Excel/CSV passed to the alert script. Default: current --input.",
+    )
+    parser.add_argument(
         "--alert-wxpusher-config",
         help="WxPusher config path passed to the alert script.",
     )
@@ -220,6 +224,8 @@ def maybe_run_alert_after_download(args, logger):
         str(alert_script),
         "--openmeteo-dir",
         openmeteo_dir,
+        "--coord-file",
+        args.alert_coord_file or args.input,
         "--log-dir",
         str(args.log_dir),
     ]

@@ -50,6 +50,7 @@ def parse_args() -> argparse.Namespace:
         default=0.0,
         help="Precipitation threshold in mm. Values greater than this are treated as rain. Default: 0.0",
     )
+    parser.add_argument("--coord-file", help="Optional coordinate Excel/CSV used to build region mapping.")
     parser.add_argument(
         "--wxpusher-config",
         default=str(ROOT_DIR / "wxpusher" / "wxpusher.config.json"),
@@ -79,16 +80,38 @@ def build_notification_message(summary: DetectionSummary) -> str:
     if not summary.has_precipitation:
         return f"{summary.target_date} 未检测到降水。"
 
-    first_record = summary.records[0]
-    message_parts = [
-        f"{summary.target_date} 检测到降水。",
-        f"命中 {summary.matched_files} 个文件。",
-        f"最大降水值 {summary.max_precipitation:.2f} mm。",
+    headline_parts = [
+        f"{summary.target_date} 研究区检测到降水。",
+        f"最高级别：{summary.highest_severity or '小雨'}。",
+        f"最大点位降水值：{summary.max_precipitation:.2f} mm。",
     ]
-    if summary.earliest_rain_time:
-        message_parts.append(f"最早降水时间 {summary.earliest_rain_time}。")
-    message_parts.append(f"首个命中文件 {Path(first_record.file_path).name}。")
-    return " ".join(message_parts)
+    if summary.earliest_rain_time and summary.latest_rain_time:
+        headline_parts.append(f"整体时段：{format_time_window(summary.earliest_rain_time, summary.latest_rain_time)}。")
+    header = " ".join(headline_parts)
+
+    grouped_windows: dict[str, list] = {}
+    for window in summary.region_windows:
+        grouped_windows.setdefault(window.region_name, []).append(window)
+
+    region_lines = []
+    for region_name in sorted(grouped_windows.keys()):
+        segment_text = "；".join(
+            f"{format_time_window(window.start_time, window.end_time)} {window.severity} {window.accumulated_precipitation:.1f} mm"
+            for window in grouped_windows[region_name]
+        )
+        region_lines.append(f"{region_name}：{segment_text}")
+
+    if not region_lines:
+        return header
+    return header + "\n" + "\n".join(region_lines)
+
+
+def format_time_window(start_time: str, end_time: str) -> str:
+    start = datetime.fromisoformat(start_time)
+    end = datetime.fromisoformat(end_time)
+    if start == end:
+        return start.strftime("%H:%M")
+    return f"{start.strftime('%H:%M')}-{end.strftime('%H:%M')}"
 
 
 def resolve_path(path_text: str) -> Path:
@@ -106,14 +129,20 @@ def build_alert_key(summary: DetectionSummary) -> str | None:
     if not summary.has_precipitation:
         return None
 
-    sources = sorted({record.source for record in summary.records})
-    file_names = sorted(Path(record.file_path).name for record in summary.records)
     payload = {
         "date": summary.target_date,
-        "sources": sources,
-        "earliest_rain_time": summary.earliest_rain_time,
+        "highest_severity": summary.highest_severity,
         "max_precipitation": round_precipitation(summary.max_precipitation),
-        "matched_files": file_names,
+        "region_windows": [
+            {
+                "region_name": window.region_name,
+                "start_time": window.start_time,
+                "end_time": window.end_time,
+                "severity": window.severity,
+                "accumulated_precipitation": round_precipitation(window.accumulated_precipitation),
+            }
+            for window in summary.region_windows
+        ],
     }
     return json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
@@ -199,6 +228,7 @@ def main() -> int:
         "Precipitation alert workflow started",
         caiyun_dir=args.caiyun_dir,
         openmeteo_dir=args.openmeteo_dir,
+        coord_file=args.coord_file,
         target_date=args.date,
         threshold=args.threshold,
         wxpusher_config=args.wxpusher_config,
@@ -215,17 +245,19 @@ def main() -> int:
         if caiyun_dir is None and openmeteo_dir is None:
             raise ValueError("At least one of --caiyun-dir or --openmeteo-dir must be provided.")
 
-        records, checked_files = collect_detection_records(
+        records, checked_files, rainy_hits = collect_detection_records(
             caiyun_dir=caiyun_dir,
             openmeteo_dir=openmeteo_dir,
             target_date=args.date,
             threshold=args.threshold,
+            coord_file=args.coord_file,
         )
         summary = build_summary(
             records=records,
             checked_files=checked_files,
             threshold=args.threshold,
             target_date=args.date,
+            rainy_hits=rainy_hits,
         )
         state = load_state(state_file)
         should_send, notification_reason, alert_key = should_send_alert(
