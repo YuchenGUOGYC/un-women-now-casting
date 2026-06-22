@@ -29,6 +29,7 @@ from common import (
 )
 
 BEIJING_TZ = ZoneInfo("Asia/Shanghai")
+UTC_TZ = ZoneInfo("UTC")
 CAIYUN_PRECIP_COLUMNS = ["precipitation"]
 OPENMETEO_PRECIP_COLUMNS = ["rain"]
 FILENAME_COORD_PATTERN = re.compile(r"lat(?P<lat>[mp\d]+)_lon(?P<lon>[mp\d]+)")
@@ -82,6 +83,10 @@ def get_beijing_today() -> str:
     return pd.Timestamp.now(tz=BEIJING_TZ).strftime("%Y-%m-%d")
 
 
+def get_utc_today() -> str:
+    return pd.Timestamp.now(tz=UTC_TZ).strftime("%Y-%m-%d")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Check whether downloaded weather data indicates precipitation.")
     parser.add_argument("--caiyun-dir", help="Root output directory for Caiyun batch results.")
@@ -89,7 +94,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--date",
         default=get_beijing_today(),
-        help="Date folder to scan in YYYY-MM-DD format. Default: today in Asia/Shanghai.",
+        help="Download date folder to scan in YYYY-MM-DD format. Default: today in Asia/Shanghai.",
+    )
+    parser.add_argument(
+        "--forecast-date-utc",
+        default=get_utc_today(),
+        help="UTC forecast date to evaluate in YYYY-MM-DD format. Default: current UTC date.",
     )
     parser.add_argument(
         "--threshold",
@@ -136,6 +146,14 @@ def pick_time_column(columns: Iterable[str]) -> str | None:
     return None
 
 
+def pick_utc_time_column(columns: Iterable[str]) -> str | None:
+    normalized = {str(column).strip().lower(): column for column in columns}
+    for candidate in ["date_utc_iso", "utc_datetime", "datetime_utc", "time_utc"]:
+        if candidate in normalized:
+            return str(normalized[candidate])
+    return None
+
+
 def decode_filename_coord(text: str) -> float:
     return float(text.replace("m", "-").replace("p", "."))
 
@@ -168,8 +186,37 @@ def normalize_timestamp_value(value) -> pd.Timestamp:
     return timestamp
 
 
+def normalize_timestamp_utc(value) -> pd.Timestamp:
+    timestamp = pd.Timestamp(value)
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.tz_localize(BEIJING_TZ)
+    return timestamp.tz_convert(UTC_TZ)
+
+
+def build_utc_date_window(forecast_date_utc: str) -> tuple[pd.Timestamp, pd.Timestamp]:
+    start_time = pd.Timestamp(forecast_date_utc, tz=UTC_TZ)
+    end_time = start_time + pd.Timedelta(days=1)
+    return start_time, end_time
+
+
 def round_precipitation(value: float) -> float:
     return round(float(value), 1)
+
+
+def filter_to_utc_window(
+    dataframe: pd.DataFrame,
+    time_column: str | None,
+    utc_time_column: str | None,
+    forecast_window_utc: tuple[pd.Timestamp, pd.Timestamp],
+) -> tuple[pd.DataFrame, pd.Series]:
+    if time_column is None:
+        return dataframe.iloc[0:0].copy(), pd.Series(dtype="datetime64[ns]")
+
+    source_column = utc_time_column or time_column
+    timestamps_utc = dataframe[source_column].map(normalize_timestamp_utc)
+    start_time, end_time = forecast_window_utc
+    mask = (timestamps_utc >= start_time) & (timestamps_utc < end_time)
+    return dataframe.loc[mask].copy(), timestamps_utc.loc[mask]
 
 
 def detect_precipitation_in_file(
@@ -178,6 +225,7 @@ def detect_precipitation_in_file(
     candidate_columns: list[str],
     threshold: float,
     region_context,
+    forecast_window_utc: tuple[pd.Timestamp, pd.Timestamp],
 ) -> tuple[DetectionRecord | None, list[dict]]:
     dataframe = load_weather_table(file_path)
     normalized_columns = {str(column).strip().lower(): column for column in dataframe.columns}
@@ -185,13 +233,23 @@ def detect_precipitation_in_file(
     if matched_column_name is None:
         return None, []
 
+    time_column = pick_time_column(dataframe.columns)
+    utc_time_column = pick_utc_time_column(dataframe.columns)
+    filtered_dataframe, filtered_timestamps_utc = filter_to_utc_window(
+        dataframe=dataframe,
+        time_column=time_column,
+        utc_time_column=utc_time_column,
+        forecast_window_utc=forecast_window_utc,
+    )
+    if filtered_dataframe.empty:
+        return None, []
+
     source_column = normalized_columns[matched_column_name]
-    numeric_series = pd.to_numeric(dataframe[source_column], errors="coerce").fillna(0.0)
-    rainy_rows = dataframe.loc[numeric_series > threshold]
+    numeric_series = pd.to_numeric(filtered_dataframe[source_column], errors="coerce").fillna(0.0)
+    rainy_rows = filtered_dataframe.loc[numeric_series > threshold]
     if rainy_rows.empty:
         return None, []
 
-    time_column = pick_time_column(dataframe.columns)
     first_rain_time = None
     if time_column is not None:
         first_rain_time = str(rainy_rows.iloc[0][time_column])
@@ -208,6 +266,7 @@ def detect_precipitation_in_file(
                     "region_name": region_name,
                     "file_path": str(file_path),
                     "timestamp": normalize_timestamp_value(row[time_column]),
+                    "timestamp_utc": filtered_timestamps_utc.loc[row_index].isoformat(),
                     "precipitation": round_precipitation(numeric_series.loc[row_index]),
                     "longitude": longitude,
                     "latitude": latitude,
@@ -293,11 +352,13 @@ def collect_detection_records(
     target_date: str,
     threshold: float,
     coord_file: str | None = None,
+    forecast_date_utc: str | None = None,
 ) -> tuple[list[DetectionRecord], int, list[dict]]:
     records: list[DetectionRecord] = []
     checked_files = 0
     rainy_hits: list[dict] = []
     region_context = build_region_context(coord_file)
+    forecast_window_utc = build_utc_date_window(forecast_date_utc or get_utc_today())
 
     for file_path in list_source_files(caiyun_dir, target_date, "*.csv"):
         checked_files += 1
@@ -307,6 +368,7 @@ def collect_detection_records(
             candidate_columns=CAIYUN_PRECIP_COLUMNS,
             threshold=threshold,
             region_context=region_context,
+            forecast_window_utc=forecast_window_utc,
         )
         if record is not None:
             records.append(record)
@@ -320,6 +382,7 @@ def collect_detection_records(
             candidate_columns=OPENMETEO_PRECIP_COLUMNS,
             threshold=threshold,
             region_context=region_context,
+            forecast_window_utc=forecast_window_utc,
         )
         if record is not None:
             records.append(record)
@@ -373,6 +436,7 @@ def main() -> int:
         caiyun_dir=args.caiyun_dir,
         openmeteo_dir=args.openmeteo_dir,
         coord_file=args.coord_file,
+        forecast_date_utc=args.forecast_date_utc,
         target_date=args.date,
         threshold=args.threshold,
         log_dir=args.log_dir,
@@ -390,6 +454,7 @@ def main() -> int:
             target_date=args.date,
             threshold=args.threshold,
             coord_file=args.coord_file,
+            forecast_date_utc=args.forecast_date_utc,
         )
         summary = build_summary(
             records=records,

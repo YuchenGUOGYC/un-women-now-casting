@@ -26,6 +26,7 @@ from model.precipitation_checker import (
     build_summary,
     collect_detection_records,
     get_beijing_today,
+    get_utc_today,
     resolve_input_dir,
 )
 from wxpusher.wxpusher_notify import ConfigError, send_notification
@@ -42,7 +43,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--date",
         default=get_beijing_today(),
-        help="Date folder to scan in YYYY-MM-DD format. Default: today in Asia/Shanghai.",
+        help="Download date folder to scan in YYYY-MM-DD format. Default: today in Asia/Shanghai.",
+    )
+    parser.add_argument(
+        "--forecast-date-utc",
+        default=get_utc_today(),
+        help="UTC forecast date to evaluate in YYYY-MM-DD format. Default: current UTC date.",
     )
     parser.add_argument(
         "--threshold",
@@ -230,6 +236,7 @@ def main() -> int:
         openmeteo_dir=args.openmeteo_dir,
         coord_file=args.coord_file,
         target_date=args.date,
+        forecast_date_utc=args.forecast_date_utc,
         threshold=args.threshold,
         wxpusher_config=args.wxpusher_config,
         state_file=args.state_file,
@@ -251,6 +258,7 @@ def main() -> int:
             target_date=args.date,
             threshold=args.threshold,
             coord_file=args.coord_file,
+            forecast_date_utc=args.forecast_date_utc,
         )
         summary = build_summary(
             records=records,
