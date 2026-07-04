@@ -36,8 +36,15 @@ def get_beijing_today():
     return pd.Timestamp.now(tz=ZoneInfo("Asia/Shanghai")).strftime("%Y-%m-%d")
 
 
+def get_default_beijing_date_range():
+    today = pd.Timestamp.now(tz=ZoneInfo("Asia/Shanghai")).normalize()
+    start_date = today - pd.Timedelta(days=1)
+    end_date = today + pd.Timedelta(days=1)
+    return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
+
+
 def parse_args():
-    beijing_today = get_beijing_today()
+    default_start_date, default_end_date = get_default_beijing_date_range()
     parser = argparse.ArgumentParser(
         description="Run openmetero.py in batch mode from a latitude/longitude list."
     )
@@ -61,8 +68,16 @@ def parse_args():
         default=sys.executable,
         help="Python executable used to run openmetero.py. Default: current Python.",
     )
-    parser.add_argument("--start-date", default=beijing_today, help="Start date in YYYY-MM-DD format.")
-    parser.add_argument("--end-date", default=beijing_today, help="End date in YYYY-MM-DD format.")
+    parser.add_argument(
+        "--start-date",
+        default=default_start_date,
+        help="Start date in YYYY-MM-DD format. Default: previous date in Asia/Shanghai.",
+    )
+    parser.add_argument(
+        "--end-date",
+        default=default_end_date,
+        help="End date in YYYY-MM-DD format. Default: next date in Asia/Shanghai.",
+    )
     parser.add_argument(
         "--timezone",
         default="Asia/Shanghai",
