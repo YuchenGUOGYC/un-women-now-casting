@@ -26,7 +26,7 @@ cd model-unwomen
 
 ## 3. Create The Conda Environment
 
-Create the environment from [environment.yml](/C:/Users/YuchenGuo/WRI/github/model-unwomen/environment.yml:1):
+Create the environment from `environment.yml`:
 
 ```bash
 conda env create -f environment.yml
@@ -44,7 +44,7 @@ conda env update -f environment.yml --prune
 Run one quick check:
 
 ```bash
-python -m py_compile common/generate_lonlat_list.py openmetero/openmetero.py caiyun/caiyun_hourly.py wxpusher/send_notification.py
+python -m py_compile common/generate_lonlat_list.py openmetero/openmetero.py openmetero/batch_run_openmetero.py caiyun/caiyun_hourly.py caiyun/batch_run_caiyun_hourly.py model/run_precipitation_alert.py model/run_picking_date_alert.py model/tea_picking_analysis.py wxpusher/send_notification.py
 ```
 
 ## 5. Prepare Runtime Files

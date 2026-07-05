@@ -140,19 +140,25 @@ To send a WxPusher message, add:
 Useful tuning parameters:
 
 ```bash
---picking-start-hour 8
---picking-end-hour 17
 --rain-lookback-hours 12
---max-hourly-rain 0.1
---max-lookback-rain 0.5
---min-temperature 10
---max-temperature 30
---max-relative-humidity 90
---min-solar-radiation 20
---min-suitable-hours 3
+--rain-threshold 0.1
+--max-relative-humidity 85
+--current-solar-threshold 80
+--drying-solar-threshold 120
+--min-drying-sun-hours 4
+--min-drying-solar-energy 1.5
+--area-suitable-fraction 0.5
+--good-picking-hours 6
+--partial-picking-hours 3
 ```
 
-The current picking suitability logic is a configurable first version. It checks rainfall, previous rain accumulation, temperature, relative humidity, and shortwave radiation during the picking window.
+Current picking suitability follows the formal tea-picking algorithm in `model/tea_picking_analysis.py` and `model/采茶适宜日期计算说明.md`:
+
+- Point-hour suitability requires daylight, no current rain, relative humidity at or below 85%, shortwave radiation at or above 80 W/m2, and enough post-rain drying.
+- If rain occurred in the previous 12 hours, post-rain drying requires at least 4 effective drying-sun hours and at least 1.5 MJ/m2 accumulated shortwave energy after the last rain hour.
+- A region-hour is suitable when at least 50% of its grid points are suitable.
+- A region day is `Good picking day` with at least 6 suitable hours, `Partial picking day` with 3-5 suitable hours, and `Not suitable` below 3 suitable hours.
+- Temperature is included in the alert statistics, but it is not used as a direct suitability filter in the formal algorithm.
 
 ## WxPusher
 

@@ -5,7 +5,6 @@ import json
 import re
 import sys
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Iterable
 from zoneinfo import ZoneInfo
@@ -32,18 +31,33 @@ from wxpusher.wxpusher_notify import ConfigError, send_notification
 BEIJING_TZ = ZoneInfo("Asia/Shanghai")
 FILENAME_COORD_PATTERN = re.compile(r"lat(?P<lat>[mp\d]+)_lon(?P<lon>[mp\d]+)")
 
+RAIN_THRESHOLD_MM = 0.1
+RAIN_LOOKBACK_HOURS = 12
+RH_THRESHOLD = 85.0
+CURRENT_SOLAR_THRESHOLD_WM2 = 80.0
+DRYING_SOLAR_THRESHOLD_WM2 = 120.0
+MIN_DRYING_SUN_HOURS = 4
+MIN_DRYING_SOLAR_ENERGY_MJ = 1.5
+AREA_SUITABLE_FRACTION_THRESHOLD = 0.5
+GOOD_PICKING_HOURS = 6
+PARTIAL_PICKING_HOURS = 3
+
 
 @dataclass
 class RegionPickingSummary:
     region_name: str
+    picking_class: str
     suitable: bool
     suitable_hour_count: int
     suitable_windows: list[str]
+    mean_suitable_fraction: float
+    mean_raining_fraction: float
+    mean_humid_fraction: float
+    mean_post_rain_dry_enough_fraction: float
     total_rain_mm: float
-    max_lookback_rain_mm: float
     mean_temperature_c: float | None
     mean_relative_humidity: float | None
-    max_solar_radiation_wm2: float | None
+    mean_solar_radiation_wm2: float | None
     reasons: list[str]
 
 
@@ -78,31 +92,46 @@ def parse_args() -> argparse.Namespace:
         help="Beijing-time date to evaluate in YYYY-MM-DD format. Default: today in Asia/Shanghai.",
     )
     parser.add_argument("--coord-file", help="Optional coordinate Excel/CSV used to build region mapping.")
-    parser.add_argument("--picking-start-hour", type=int, default=8, help="First local picking hour. Default: 8.")
-    parser.add_argument("--picking-end-hour", type=int, default=17, help="Last local picking hour. Default: 17.")
+    parser.add_argument("--rain-threshold", type=float, default=RAIN_THRESHOLD_MM, help="Rain threshold in mm/h.")
     parser.add_argument(
         "--rain-lookback-hours",
         type=int,
-        default=12,
-        help="Hours of rain lookback before each picking hour. Default: 12.",
+        default=RAIN_LOOKBACK_HOURS,
+        help="Recent rain lookback window in hours.",
     )
-    parser.add_argument("--max-hourly-rain", type=float, default=0.1, help="Maximum rain in picking hour, mm.")
-    parser.add_argument("--max-lookback-rain", type=float, default=0.5, help="Maximum lookback rain sum, mm.")
-    parser.add_argument("--min-temperature", type=float, default=10.0, help="Minimum suitable temperature, C.")
-    parser.add_argument("--max-temperature", type=float, default=30.0, help="Maximum suitable temperature, C.")
-    parser.add_argument("--max-relative-humidity", type=float, default=90.0, help="Maximum suitable RH, percent.")
+    parser.add_argument("--max-relative-humidity", type=float, default=RH_THRESHOLD, help="Maximum suitable RH.")
     parser.add_argument(
-        "--min-solar-radiation",
+        "--current-solar-threshold",
         type=float,
-        default=20.0,
-        help="Minimum suitable shortwave radiation, W/m2. Default: 20.",
+        default=CURRENT_SOLAR_THRESHOLD_WM2,
+        help="Current-hour suitable shortwave radiation threshold, W/m2.",
     )
     parser.add_argument(
-        "--min-suitable-hours",
-        type=int,
-        default=3,
-        help="Minimum suitable hours required for a region to be marked suitable. Default: 3.",
+        "--drying-solar-threshold",
+        type=float,
+        default=DRYING_SOLAR_THRESHOLD_WM2,
+        help="Effective post-rain drying shortwave radiation threshold, W/m2.",
     )
+    parser.add_argument(
+        "--min-drying-sun-hours",
+        type=int,
+        default=MIN_DRYING_SUN_HOURS,
+        help="Minimum effective drying sun hours after recent rain.",
+    )
+    parser.add_argument(
+        "--min-drying-solar-energy",
+        type=float,
+        default=MIN_DRYING_SOLAR_ENERGY_MJ,
+        help="Minimum post-rain accumulated solar energy, MJ/m2.",
+    )
+    parser.add_argument(
+        "--area-suitable-fraction",
+        type=float,
+        default=AREA_SUITABLE_FRACTION_THRESHOLD,
+        help="Minimum suitable point fraction for a region-hour.",
+    )
+    parser.add_argument("--good-picking-hours", type=int, default=GOOD_PICKING_HOURS)
+    parser.add_argument("--partial-picking-hours", type=int, default=PARTIAL_PICKING_HOURS)
     parser.add_argument(
         "--wxpusher-config",
         default=str(ROOT_DIR / "wxpusher" / "wxpusher.config.json"),
@@ -144,6 +173,10 @@ def decode_filename_coord(text: str) -> float:
     return float(text.replace("m", "-").replace("p", "."))
 
 
+def build_point_id(longitude: float, latitude: float) -> str:
+    return f"lon{longitude:.6f}_lat{latitude:.6f}"
+
+
 def extract_query_coordinates(file_path: Path, dataframe: pd.DataFrame) -> tuple[float, float]:
     match = FILENAME_COORD_PATTERN.search(file_path.stem)
     if match:
@@ -151,10 +184,9 @@ def extract_query_coordinates(file_path: Path, dataframe: pd.DataFrame) -> tuple
 
     normalized_columns = {str(column).strip().lower(): column for column in dataframe.columns}
     if "longitude" in normalized_columns and "latitude" in normalized_columns and not dataframe.empty:
-        longitude = float(dataframe.iloc[0][normalized_columns["longitude"]])
-        latitude = float(dataframe.iloc[0][normalized_columns["latitude"]])
-        return longitude, latitude
-
+        return float(dataframe.iloc[0][normalized_columns["longitude"]]), float(
+            dataframe.iloc[0][normalized_columns["latitude"]]
+        )
     raise ValueError(f"Could not determine coordinates for file: {file_path}")
 
 
@@ -173,13 +205,20 @@ def pick_column(columns: Iterable[str], candidates: list[str]) -> str | None:
     return None
 
 
-def normalize_relative_humidity(series: pd.Series) -> pd.Series:
-    numeric = pd.to_numeric(series, errors="coerce")
-    if numeric.dropna().empty:
-        return numeric
-    if numeric.max(skipna=True) <= 1.5:
-        return numeric * 100
-    return numeric
+def normalize_relative_humidity(value) -> float | None:
+    numeric = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+    if pd.isna(numeric):
+        return None
+    if numeric <= 1.5:
+        return float(numeric) * 100
+    return float(numeric)
+
+
+def numeric_value(value) -> float | None:
+    numeric = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+    if pd.isna(numeric):
+        return None
+    return float(numeric)
 
 
 def collect_hourly_records(
@@ -198,16 +237,18 @@ def collect_hourly_records(
 
     for file_path in list_source_files(caiyun_dir, download_date, "*.csv"):
         checked_files += 1
-        dataframe = load_weather_table(file_path)
-        file_records = extract_file_records(file_path, dataframe, "caiyun", region_context, start_time, end_time)
+        file_records = extract_file_records(
+            file_path, load_weather_table(file_path), "caiyun", region_context, start_time, end_time
+        )
         if file_records:
             matched_files += 1
             records.extend(file_records)
 
     for file_path in list_source_files(openmeteo_dir, download_date, "*.xlsx"):
         checked_files += 1
-        dataframe = load_weather_table(file_path)
-        file_records = extract_file_records(file_path, dataframe, "openmeteo", region_context, start_time, end_time)
+        file_records = extract_file_records(
+            file_path, load_weather_table(file_path), "openmeteo", region_context, start_time, end_time
+        )
         if file_records:
             matched_files += 1
             records.extend(file_records)
@@ -228,6 +269,7 @@ def extract_file_records(
         return []
 
     longitude, latitude = extract_query_coordinates(file_path, dataframe)
+    point_id = build_point_id(longitude, latitude)
     region_name = get_region_name(longitude, latitude, region_context)
     timestamps = dataframe[time_column].map(normalize_local_timestamp)
     filtered = dataframe.loc[(timestamps >= start_time) & (timestamps < end_time)].copy()
@@ -238,64 +280,144 @@ def extract_file_records(
     if source == "openmeteo":
         columns = {
             "rain_mm": pick_column(filtered.columns, ["rain", "precipitation"]),
-            "temperature_c": pick_column(filtered.columns, ["temperature_2m", "temperature", "temp_c"]),
+            "temp_c": pick_column(filtered.columns, ["temperature_2m", "temperature", "temp_c"]),
             "relative_humidity": pick_column(filtered.columns, ["relative_humidity_2m", "humidity", "relative_humidity"]),
-            "solar_radiation_wm2": pick_column(filtered.columns, ["shortwave_radiation", "solar_radiation", "solar_wm2"]),
+            "solar_wm2": pick_column(filtered.columns, ["shortwave_radiation", "solar_radiation", "solar_wm2"]),
         }
     else:
         columns = {
             "rain_mm": pick_column(filtered.columns, ["precipitation", "rain"]),
-            "temperature_c": pick_column(filtered.columns, ["temperature", "temperature_2m", "temp_c"]),
+            "temp_c": pick_column(filtered.columns, ["temperature", "temperature_2m", "temp_c"]),
             "relative_humidity": pick_column(filtered.columns, ["humidity", "relative_humidity", "relative_humidity_2m"]),
-            "solar_radiation_wm2": pick_column(filtered.columns, ["solar_radiation", "shortwave_radiation", "solar_wm2"]),
+            "solar_wm2": pick_column(filtered.columns, ["solar_radiation", "shortwave_radiation", "solar_wm2"]),
         }
 
     output: list[dict] = []
     for row_index, row in filtered.iterrows():
-        record = {
-            "source": source,
-            "file_path": str(file_path),
-            "region_name": region_name,
-            "timestamp": filtered_timestamps.loc[row_index],
-            "longitude": longitude,
-            "latitude": latitude,
-        }
-        for metric, column in columns.items():
-            if column is None:
-                record[metric] = None
-            elif metric == "relative_humidity":
-                record[metric] = normalize_relative_humidity(pd.Series([row[column]])).iloc[0]
-            else:
-                record[metric] = pd.to_numeric(pd.Series([row[column]]), errors="coerce").iloc[0]
-        output.append(record)
+        solar_wm2 = numeric_value(row[columns["solar_wm2"]]) if columns["solar_wm2"] else None
+        output.append(
+            {
+                "point_id": point_id,
+                "region_name": region_name,
+                "timestamp": filtered_timestamps.loc[row_index],
+                "rain_mm": numeric_value(row[columns["rain_mm"]]) if columns["rain_mm"] else 0.0,
+                "temp_c": numeric_value(row[columns["temp_c"]]) if columns["temp_c"] else None,
+                "relative_humidity": normalize_relative_humidity(row[columns["relative_humidity"]])
+                if columns["relative_humidity"]
+                else None,
+                "solar_wm2": solar_wm2,
+                "is_daylight": int(solar_wm2 is not None and solar_wm2 > 0),
+            }
+        )
     return output
 
 
-def build_region_hourly(dataframe: pd.DataFrame) -> pd.DataFrame:
+def build_point_hourly(dataframe: pd.DataFrame) -> pd.DataFrame:
     if dataframe.empty:
         return dataframe
-
-    metric_columns = ["rain_mm", "temperature_c", "relative_humidity", "solar_radiation_wm2"]
-    source_hour = (
-        dataframe.groupby(["region_name", "timestamp", "source"], as_index=False)
-        .agg({column: "mean" for column in metric_columns})
-        .sort_values(["region_name", "timestamp", "source"])
+    point_hourly = (
+        dataframe.groupby(["point_id", "region_name", "timestamp"], as_index=False)
+        .agg(
+            rain_mm=("rain_mm", "mean"),
+            temp_c=("temp_c", "mean"),
+            relative_humidity=("relative_humidity", "mean"),
+            solar_wm2=("solar_wm2", "mean"),
+        )
+        .sort_values(["point_id", "timestamp"])
     )
-    region_hour = (
-        source_hour.groupby(["region_name", "timestamp"], as_index=False)
-        .agg({column: "mean" for column in metric_columns})
+    point_hourly["rain_mm"] = point_hourly["rain_mm"].fillna(0).clip(lower=0)
+    point_hourly["solar_wm2"] = point_hourly["solar_wm2"].clip(lower=0)
+    point_hourly["is_daylight"] = (point_hourly["solar_wm2"].fillna(0) > 0).astype(int)
+    return point_hourly
+
+
+def calculate_point_suitability(group: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
+    rows = group.sort_values("timestamp").copy()
+    rows["is_raining"] = (rows["rain_mm"] >= args.rain_threshold).astype(int)
+    rows["too_humid"] = (rows["relative_humidity"] > args.max_relative_humidity).astype(int)
+    rows["current_enough_sun"] = (rows["solar_wm2"] >= args.current_solar_threshold).astype(int)
+    rows["effective_drying_sun"] = (
+        (rows["is_daylight"] == 1) & (rows["solar_wm2"] >= args.drying_solar_threshold)
+    ).astype(int)
+    rows["solar_energy_mj"] = rows["solar_wm2"].fillna(0) * 3600 / 1_000_000
+
+    datetimes = rows["timestamp"].to_numpy()
+    is_rain = rows["is_raining"].to_numpy()
+    effective = rows["effective_drying_sun"].to_numpy()
+    energy = rows["solar_energy_mj"].to_numpy()
+    cum_effective = [0]
+    cum_energy = [0.0]
+    for value in effective:
+        cum_effective.append(cum_effective[-1] + int(value))
+    for value in energy:
+        cum_energy.append(cum_energy[-1] + float(value))
+
+    post_dry_enough = [1] * len(rows)
+    last_rain_idx = None
+
+    for index in range(len(rows)):
+        if is_rain[index] == 1:
+            last_rain_idx = index
+        if last_rain_idx is None:
+            continue
+        delta_hours = (pd.Timestamp(datetimes[index]) - pd.Timestamp(datetimes[last_rain_idx])).total_seconds() / 3600
+        if delta_hours <= args.rain_lookback_hours:
+            start = last_rain_idx + 1
+            end = index + 1
+            hours = int(cum_effective[end] - cum_effective[start])
+            energy_mj = float(cum_energy[end] - cum_energy[start])
+            post_dry_enough[index] = int(
+                hours >= args.min_drying_sun_hours and energy_mj >= args.min_drying_solar_energy
+            )
+
+    rows["post_rain_dry_enough"] = post_dry_enough
+    rows["suitable_for_picking"] = (
+        (rows["is_daylight"] == 1)
+        & (rows["is_raining"] == 0)
+        & (rows["too_humid"] == 0)
+        & (rows["current_enough_sun"] == 1)
+        & (rows["post_rain_dry_enough"] == 1)
+    ).astype(int)
+    return rows
+
+
+def build_point_suitability(point_hourly: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
+    if point_hourly.empty:
+        return point_hourly
+    groups = (
+        calculate_point_suitability(group, args)
+        for _, group in point_hourly.groupby("point_id", sort=False)
+    )
+    return pd.concat(groups, ignore_index=True)
+
+
+def build_region_hourly(point_hourly: pd.DataFrame, args: argparse.Namespace) -> pd.DataFrame:
+    if point_hourly.empty:
+        return point_hourly
+    region_hourly = (
+        point_hourly.groupby(["region_name", "timestamp"], as_index=False)
+        .agg(
+            mean_rain_mm=("rain_mm", "mean"),
+            mean_temp_c=("temp_c", "mean"),
+            mean_relative_humidity=("relative_humidity", "mean"),
+            mean_solar_wm2=("solar_wm2", "mean"),
+            raining_fraction=("is_raining", "mean"),
+            humid_fraction=("too_humid", "mean"),
+            current_enough_sun_fraction=("current_enough_sun", "mean"),
+            post_rain_dry_enough_fraction=("post_rain_dry_enough", "mean"),
+            suitable_fraction=("suitable_for_picking", "mean"),
+        )
         .sort_values(["region_name", "timestamp"])
     )
-    region_hour["rain_mm"] = region_hour["rain_mm"].fillna(0).round(1)
-    for column in ["temperature_c", "relative_humidity", "solar_radiation_wm2"]:
-        region_hour[column] = region_hour[column].round(1)
-    return region_hour
+    region_hourly["area_suitable_for_picking"] = (
+        region_hourly["suitable_fraction"] >= args.area_suitable_fraction
+    ).astype(int)
+    return region_hourly
 
 
 def merge_hour_windows(timestamps: list[pd.Timestamp]) -> list[str]:
     if not timestamps:
         return []
-
     timestamps = sorted(timestamps)
     windows: list[tuple[pd.Timestamp, pd.Timestamp]] = []
     start = timestamps[0]
@@ -308,84 +430,66 @@ def merge_hour_windows(timestamps: list[pd.Timestamp]) -> list[str]:
         start = timestamp
         previous = timestamp
     windows.append((start, previous))
-
-    result = []
-    for start_time, end_time in windows:
-        if start_time == end_time:
-            result.append(start_time.strftime("%H:%M"))
-        else:
-            result.append(f"{start_time.strftime('%H:%M')}-{end_time.strftime('%H:%M')}")
-    return result
+    return [
+        start_time.strftime("%H:%M")
+        if start_time == end_time
+        else f"{start_time.strftime('%H:%M')}-{end_time.strftime('%H:%M')}"
+        for start_time, end_time in windows
+    ]
 
 
-def evaluate_picking_suitability(region_hour: pd.DataFrame, args: argparse.Namespace) -> PickingDateSummary:
+def classify_picking_day(suitable_hours: int, args: argparse.Namespace) -> str:
+    if suitable_hours >= args.good_picking_hours:
+        return "Good picking day"
+    if suitable_hours >= args.partial_picking_hours:
+        return "Partial picking day"
+    return "Not suitable"
+
+
+def evaluate_picking_suitability(region_hourly: pd.DataFrame, args: argparse.Namespace) -> PickingDateSummary:
+    if region_hourly.empty:
+        return PickingDateSummary(args.target_date, False, [], 0, 0, [])
+
     region_summaries: list[RegionPickingSummary] = []
-    if region_hour.empty:
-        return PickingDateSummary(
-            target_date=args.target_date,
-            has_suitable_region=False,
-            suitable_regions=[],
-            checked_files=0,
-            matched_files=0,
-            region_summaries=[],
-        )
-
-    for region_name, rows in region_hour.groupby("region_name"):
+    for region_name, rows in region_hourly.groupby("region_name"):
         rows = rows.sort_values("timestamp").copy()
-        rows["lookback_rain_mm"] = rows["rain_mm"].rolling(args.rain_lookback_hours + 1, min_periods=1).sum()
-        picking_rows = rows[
-            (rows["timestamp"].dt.hour >= args.picking_start_hour)
-            & (rows["timestamp"].dt.hour <= args.picking_end_hour)
-        ].copy()
-
-        suitable_mask = (
-            (picking_rows["rain_mm"] <= args.max_hourly_rain)
-            & (picking_rows["lookback_rain_mm"] <= args.max_lookback_rain)
-            & (picking_rows["temperature_c"].between(args.min_temperature, args.max_temperature))
-            & (picking_rows["relative_humidity"] <= args.max_relative_humidity)
-        )
-
-        if "solar_radiation_wm2" in picking_rows.columns and not picking_rows["solar_radiation_wm2"].isna().all():
-            suitable_mask = suitable_mask & (picking_rows["solar_radiation_wm2"] >= args.min_solar_radiation)
-
-        suitable_rows = picking_rows.loc[suitable_mask]
-        suitable_hour_count = len(suitable_rows)
-        suitable = suitable_hour_count >= args.min_suitable_hours
-        total_rain = round(float(rows["rain_mm"].sum()), 1)
-        max_lookback_rain = round(float(picking_rows["lookback_rain_mm"].max()), 1) if not picking_rows.empty else 0.0
+        suitable_rows = rows.loc[rows["area_suitable_for_picking"] == 1]
+        suitable_hour_count = int(rows["area_suitable_for_picking"].sum())
+        picking_class = classify_picking_day(suitable_hour_count, args)
+        suitable = picking_class != "Not suitable"
 
         reasons = []
-        if total_rain > args.max_lookback_rain:
-            reasons.append(f"全天累计降水 {total_rain:.1f} mm")
-        if max_lookback_rain > args.max_lookback_rain:
-            reasons.append(f"采摘前 {args.rain_lookback_hours} 小时最大累计降水 {max_lookback_rain:.1f} mm")
-        if picking_rows["temperature_c"].dropna().empty:
-            reasons.append("缺少温度数据")
-        elif not picking_rows["temperature_c"].between(args.min_temperature, args.max_temperature).any():
-            reasons.append("采摘时段温度不在适宜范围")
-        if picking_rows["relative_humidity"].dropna().empty:
-            reasons.append("缺少相对湿度数据")
-        elif (picking_rows["relative_humidity"] > args.max_relative_humidity).all():
-            reasons.append("采摘时段相对湿度偏高")
+        if rows["raining_fraction"].mean() > 0:
+            reasons.append(f"降雨点位比例均值 {rows['raining_fraction'].mean():.0%}")
+        if rows["humid_fraction"].mean() > 0:
+            reasons.append(f"高湿点位比例均值 {rows['humid_fraction'].mean():.0%}")
+        if rows["current_enough_sun_fraction"].mean() < args.area_suitable_fraction:
+            reasons.append("光照达标点位比例偏低")
+        if rows["post_rain_dry_enough_fraction"].mean() < args.area_suitable_fraction:
+            reasons.append("雨后干燥条件不足")
         if not suitable and not reasons:
-            reasons.append(f"满足条件小时数不足 {args.min_suitable_hours} 小时")
+            reasons.append(f"区域适采小时数少于 {args.partial_picking_hours} 小时")
 
         region_summaries.append(
             RegionPickingSummary(
                 region_name=region_name,
+                picking_class=picking_class,
                 suitable=suitable,
                 suitable_hour_count=suitable_hour_count,
                 suitable_windows=merge_hour_windows(list(suitable_rows["timestamp"])),
-                total_rain_mm=total_rain,
-                max_lookback_rain_mm=max_lookback_rain,
-                mean_temperature_c=round(float(picking_rows["temperature_c"].mean()), 1)
-                if not picking_rows["temperature_c"].dropna().empty
+                mean_suitable_fraction=round(float(rows["suitable_fraction"].mean()), 3),
+                mean_raining_fraction=round(float(rows["raining_fraction"].mean()), 3),
+                mean_humid_fraction=round(float(rows["humid_fraction"].mean()), 3),
+                mean_post_rain_dry_enough_fraction=round(float(rows["post_rain_dry_enough_fraction"].mean()), 3),
+                total_rain_mm=round(float(rows["mean_rain_mm"].sum()), 1),
+                mean_temperature_c=round(float(rows["mean_temp_c"].mean()), 1)
+                if not rows["mean_temp_c"].dropna().empty
                 else None,
-                mean_relative_humidity=round(float(picking_rows["relative_humidity"].mean()), 1)
-                if not picking_rows["relative_humidity"].dropna().empty
+                mean_relative_humidity=round(float(rows["mean_relative_humidity"].mean()), 1)
+                if not rows["mean_relative_humidity"].dropna().empty
                 else None,
-                max_solar_radiation_wm2=round(float(picking_rows["solar_radiation_wm2"].max()), 1)
-                if not picking_rows["solar_radiation_wm2"].dropna().empty
+                mean_solar_radiation_wm2=round(float(rows["mean_solar_wm2"].mean()), 1)
+                if not rows["mean_solar_wm2"].dropna().empty
                 else None,
                 reasons=reasons,
             )
@@ -402,6 +506,12 @@ def evaluate_picking_suitability(region_hour: pd.DataFrame, args: argparse.Names
     )
 
 
+def format_optional(value: float | None) -> str:
+    if value is None:
+        return "NA"
+    return f"{value:.1f}"
+
+
 def build_notification_message(summary: PickingDateSummary) -> str:
     if not summary.region_summaries:
         return f"{summary.target_date} 未找到可用于采茶适宜性判断的气象数据。"
@@ -413,21 +523,15 @@ def build_notification_message(summary: PickingDateSummary) -> str:
 
     lines = [header]
     for item in summary.region_summaries:
-        status = "适宜" if item.suitable else "不适宜"
         windows = "、".join(item.suitable_windows) if item.suitable_windows else "无"
         reason_text = "；".join(item.reasons[:2]) if item.reasons else "条件满足"
         lines.append(
-            f"{item.region_name}：{status}，适宜时段 {windows}，"
-            f"雨量 {item.total_rain_mm:.1f} mm，均温 {format_optional(item.mean_temperature_c)} C，"
-            f"均湿 {format_optional(item.mean_relative_humidity)}%，原因：{reason_text}"
+            f"{item.region_name}：{item.picking_class}，适采小时 {item.suitable_hour_count}，"
+            f"适采时段 {windows}，适采比例均值 {item.mean_suitable_fraction:.0%}，"
+            f"雨量 {item.total_rain_mm:.1f} mm，均湿 {format_optional(item.mean_relative_humidity)}%，"
+            f"原因：{reason_text}"
         )
     return "\n".join(lines)
-
-
-def format_optional(value: float | None) -> str:
-    if value is None:
-        return "NA"
-    return f"{value:.1f}"
 
 
 def main() -> int:
@@ -461,8 +565,10 @@ def main() -> int:
             target_date=args.target_date,
             coord_file=args.coord_file,
         )
-        region_hour = build_region_hourly(records)
-        summary = evaluate_picking_suitability(region_hour, args)
+        point_hourly = build_point_hourly(records)
+        point_suitability = build_point_suitability(point_hourly, args)
+        region_hourly = build_region_hourly(point_suitability, args)
+        summary = evaluate_picking_suitability(region_hourly, args)
         summary.checked_files = checked_files
         summary.matched_files = matched_files
 
