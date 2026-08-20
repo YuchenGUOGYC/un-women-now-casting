@@ -42,6 +42,8 @@ To generate a regular grid:
 python common/generate_lonlat_list.py --west 105.63 --south 28.03 --east 105.99 --north 28.41 --resolution 0.05 --output lonlat_list.xlsx
 ```
 
+Region names are resolved from `study area/study_area_region_grid.geojson` by default. This GeoJSON grid takes priority over any existing `region_name` column in the coordinate file, so updating the GeoJSON updates precipitation and tea-picking region grouping consistently. If the GeoJSON file is missing, the code generates the same 8x8 fallback grid in memory, including `外围-南部`.
+
 To pre-annotate regions for faster alert runs:
 
 ```bash
@@ -208,3 +210,5 @@ logs/YYYY-MM-DD/
 ```
 
 On the server, pass `--log-dir /home/ec2-user/rs_dataset/nowcasting_log` to keep logs in the shared runtime log directory.
+
+
