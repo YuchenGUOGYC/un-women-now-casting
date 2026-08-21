@@ -144,6 +144,42 @@ def run_command(command: list[str], logger, label: str) -> None:
     subprocess.run(command, check=True)
 
 
+def resolve_radar_lookup(args: argparse.Namespace, radar_root: Path, logger) -> Path:
+    """Use S3 first, then fall back to an explicit or repository-local lookup."""
+    if args.radar_lookup:
+        explicit = resolve_path(args.radar_lookup)
+        if not explicit.exists():
+            raise FileNotFoundError(f"Explicit --radar-lookup does not exist: {explicit}")
+        logger.info("Using explicitly configured radar lookup: %s", explicit)
+        return explicit
+
+    lookup = radar_root / "lookup" / "radar_highres_to_lonlat_lookup.xlsx"
+    lookup.parent.mkdir(parents=True, exist_ok=True)
+    lookup_uri = s3_join(args.s3_base_uri, args.radar_lookup_s3_key).rstrip("/")
+    try:
+        run_command(
+            [args.aws_cli, "s3", "cp", lookup_uri, str(lookup)],
+            logger,
+            "Downloading radar lookup from S3 (preferred)",
+        )
+        logger.info("Using S3 radar lookup: %s", lookup_uri)
+        return lookup
+    except subprocess.CalledProcessError as exc:
+        logger.warning("S3 radar lookup unavailable (%s); trying local fallback", exc)
+
+    relative_lookup = Path("data") / "nmc_xinan_radar" / "roi_pipeline" / "lookup" / "radar_highres_to_lonlat_lookup.xlsx"
+    classifier_path = resolve_path(args.radar_classifier_script)
+    candidates = [classifier_path.parent.parent / relative_lookup, Path.cwd() / relative_lookup]
+    for candidate in candidates:
+        if candidate.exists():
+            logger.info("Using local fallback radar lookup: %s", candidate)
+            return candidate
+
+    raise FileNotFoundError(
+        "Radar lookup was not found in S3 or local fallback paths. "
+        f"Tried S3 key {lookup_uri} and local paths: {candidates}"
+    )
+
 def stage_openmeteo(args: argparse.Namespace, run_started_at: pd.Timestamp, run_id: str, logger) -> Path:
     run_date = run_started_at.strftime("%Y-%m-%d")
     previous_date = (run_started_at.normalize() - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
@@ -187,18 +223,7 @@ def download_and_classify_radar(
     logger,
 ) -> tuple[list[Path], Path]:
     radar_root = resolve_path(args.radar_work_dir) / f"run={run_id}"
-    if args.radar_lookup:
-        lookup = resolve_path(args.radar_lookup)
-        if not lookup.exists():
-            raise FileNotFoundError(lookup)
-    else:
-        lookup = radar_root / "lookup" / "radar_highres_to_lonlat_lookup.xlsx"
-        lookup.parent.mkdir(parents=True, exist_ok=True)
-        run_command(
-            [args.aws_cli, "s3", "cp", s3_join(args.s3_base_uri, args.radar_lookup_s3_key).rstrip("/"), str(lookup)],
-            logger,
-            "Downloading radar lookup",
-        )
+    lookup = resolve_radar_lookup(args, radar_root, logger)
 
     dates = [
         (observation_cutoff.normalize() - pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
@@ -407,14 +432,5 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-
-
-
-
-
-
-
-
 
 
