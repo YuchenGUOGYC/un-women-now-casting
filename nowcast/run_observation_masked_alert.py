@@ -44,7 +44,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--openmeteo-output-dir", required=True, help="Local root for unmodified forecast runs.")
     parser.add_argument("--merged-output-dir", required=True, help="Local root for observation-masked forecast runs.")
     parser.add_argument("--radar-work-dir", required=True, help="Local working root for radar downloads and outputs.")
-    parser.add_argument("--radar-classifier-script", required=True, help="Path to classify_hourly_radar_weather.py.")
+    parser.add_argument(
+        "--radar-classifier-script",
+        default=str(ROOT_DIR / "radar" / "processing" / "classify_hourly_radar_weather.py"),
+        help="Path to classify_hourly_radar_weather.py.",
+    )
     parser.add_argument("--radar-lookup", help="Existing lookup file. If omitted, it is downloaded from S3.")
     parser.add_argument("--openmeteo-script", default=str(ROOT_DIR / "openmetero" / "batch_run_openmetero.py"))
     parser.add_argument(
@@ -432,5 +436,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

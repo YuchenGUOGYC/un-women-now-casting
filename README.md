@@ -235,7 +235,7 @@ EC2 command replacing the current Open-Meteo-plus-alert chain:
   --openmeteo-output-dir /home/ec2-user/rs_dataset/nowcasting_output/openmeteo_forecast_runs \
   --merged-output-dir /home/ec2-user/rs_dataset/nowcasting_output/openmeteo_observation_masked_runs \
   --radar-work-dir /home/ec2-user/rs_dataset/nowcasting_output/radar_observation_runs \
-  --radar-classifier-script /home/ec2-user/rs_dataset/github/download_radar/processing/classify_hourly_radar_weather.py \
+  --radar-classifier-script /home/ec2-user/rs_dataset/github/un-women-now-casting/radar/processing/classify_hourly_radar_weather.py \
   --caiyun-dir /home/ec2-user/rs_dataset/nowcasting_output/caiyun_batch \
   --timezone Asia/Shanghai \
   --max-workers 6 \
