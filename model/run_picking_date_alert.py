@@ -440,10 +440,10 @@ def merge_hour_windows(timestamps: list[pd.Timestamp]) -> list[str]:
 
 def classify_picking_day(suitable_hours: int, args: argparse.Namespace) -> str:
     if suitable_hours >= args.good_picking_hours:
-        return "Good picking day"
+        return "适宜采茶"
     if suitable_hours >= args.partial_picking_hours:
-        return "Partial picking day"
-    return "Not suitable"
+        return "部分时段适宜"
+    return "暂不适宜采茶"
 
 
 def evaluate_picking_suitability(region_hourly: pd.DataFrame, args: argparse.Namespace) -> PickingDateSummary:
@@ -456,19 +456,19 @@ def evaluate_picking_suitability(region_hourly: pd.DataFrame, args: argparse.Nam
         suitable_rows = rows.loc[rows["area_suitable_for_picking"] == 1]
         suitable_hour_count = int(rows["area_suitable_for_picking"].sum())
         picking_class = classify_picking_day(suitable_hour_count, args)
-        suitable = picking_class != "Not suitable"
+        suitable = picking_class != "暂不适宜采茶"
 
         reasons = []
         if rows["raining_fraction"].mean() > 0:
-            reasons.append(f"降雨点位比例均值 {rows['raining_fraction'].mean():.0%}")
+            reasons.append(f"降雨覆盖比例{rows['raining_fraction'].mean():.0%}")
         if rows["humid_fraction"].mean() > 0:
-            reasons.append(f"高湿点位比例均值 {rows['humid_fraction'].mean():.0%}")
-        if rows["current_enough_sun_fraction"].mean() < args.area_suitable_fraction:
-            reasons.append("光照达标点位比例偏低")
+            reasons.append(f"高湿覆盖比例{rows['humid_fraction'].mean():.0%}")
         if rows["post_rain_dry_enough_fraction"].mean() < args.area_suitable_fraction:
             reasons.append("雨后干燥条件不足")
-        if not suitable and not reasons:
-            reasons.append(f"区域适采小时数少于 {args.partial_picking_hours} 小时")
+        if rows["suitable_fraction"].mean() < args.area_suitable_fraction:
+            reasons.append("综合适采覆盖比例偏低")
+        if not reasons:
+            reasons.append("降雨、湿度和光照条件满足")
 
         region_summaries.append(
             RegionPickingSummary(
@@ -514,22 +514,16 @@ def format_optional(value: float | None) -> str:
 
 def build_notification_message(summary: PickingDateSummary) -> str:
     if not summary.region_summaries:
-        return f"{summary.target_date} 未找到可用于采茶适宜性判断的气象数据。"
+        return "采茶建议尚未计算。"
 
-    if summary.has_suitable_region:
-        header = f"{summary.target_date} 存在适宜采茶区域：{', '.join(summary.suitable_regions)}。"
-    else:
-        header = f"{summary.target_date} 暂无适宜采茶区域。"
-
-    lines = [header]
+    lines = []
     for item in summary.region_summaries:
         windows = "、".join(item.suitable_windows) if item.suitable_windows else "无"
-        reason_text = "；".join(item.reasons[:2]) if item.reasons else "条件满足"
+        reason_text = "、".join(item.reasons[:2]) if item.reasons else "降雨、湿度和光照条件满足"
         lines.append(
-            f"{item.region_name}：{item.picking_class}，适采小时 {item.suitable_hour_count}，"
-            f"适采时段 {windows}，适采比例均值 {item.mean_suitable_fraction:.0%}，"
-            f"雨量 {item.total_rain_mm:.1f} mm，均湿 {format_optional(item.mean_relative_humidity)}%，"
-            f"原因：{reason_text}"
+            f"{item.region_name}：{item.picking_class}；适采{item.suitable_hour_count}小时；"
+            f"建议时段：{windows}；预计雨量{item.total_rain_mm:.1f}毫米；"
+            f"平均湿度{format_optional(item.mean_relative_humidity)}%；说明：{reason_text}"
         )
     return "\n".join(lines)
 
