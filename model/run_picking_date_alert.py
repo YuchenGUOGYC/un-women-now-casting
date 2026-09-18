@@ -516,16 +516,32 @@ def build_notification_message(summary: PickingDateSummary) -> str:
     if not summary.region_summaries:
         return "采茶建议尚未计算。"
 
-    lines = []
-    for item in summary.region_summaries:
+    # 推送只关注核心位置；“外围-*”分区仍参与计算，但不进入消息正文。
+    core_summaries = [
+        item for item in summary.region_summaries if not item.region_name.startswith("外围")
+    ]
+    if not core_summaries:
+        return f"总结：{summary.target_date}未找到核心区域的采茶建议。"
+
+    suitable_core_regions = [item.region_name for item in core_summaries if item.suitable]
+    if suitable_core_regions:
+        overview = (
+            f"总结：{summary.target_date}适宜采茶的核心区域："
+            f"{'、'.join(suitable_core_regions)}。"
+        )
+    else:
+        overview = f"总结：{summary.target_date}核心区域暂无适宜采茶区域。"
+
+    sections = [overview]
+    for item in core_summaries:
         windows = "、".join(item.suitable_windows) if item.suitable_windows else "无"
         reason_text = "、".join(item.reasons[:2]) if item.reasons else "降雨、湿度和光照条件满足"
-        lines.append(
-            f"{item.region_name}：{item.picking_class}；适采{item.suitable_hour_count}小时；"
+        sections.append(
+            f"{item.region_name}，{item.picking_class}；适采{item.suitable_hour_count}小时；"
             f"建议时段：{windows}；预计雨量{item.total_rain_mm:.1f}毫米；"
             f"平均湿度{format_optional(item.mean_relative_humidity)}%；说明：{reason_text}"
         )
-    return "\n".join(lines)
+    return "\n\n".join(sections)
 
 
 def main() -> int:
