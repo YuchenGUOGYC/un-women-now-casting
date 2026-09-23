@@ -37,6 +37,20 @@ class FakeResponse:
         return None
 
 
+class FakeCsvResponse:
+    def __init__(self, text: str):
+        self._payload = text.encode("utf-8")
+
+    def read(self) -> bytes:
+        return self._payload
+
+    def __enter__(self) -> "FakeCsvResponse":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        return None
+
+
 class WxPusherTests(unittest.TestCase):
     def setUp(self) -> None:
         self.workspace = Path(__file__).resolve().parent / ".tmp"
@@ -141,6 +155,49 @@ class WxPusherTests(unittest.TestCase):
                 summary="现在下雨",
                 config_path=str(config_path),
             )
+
+    def test_load_config_replaces_uids_from_csv(self) -> None:
+        config_path = write_config(
+            self.workspace / "test_remote_uids",
+            {
+                "provider": "wxpusher",
+                "wxpusher": {
+                    "app_token": "AT_test",
+                    "uids": ["UID_fallback"],
+                    "uids_csv_url": "https://example.test/uids.csv",
+                    "uids_source_mode": "replace",
+                    "content_type": 1,
+                },
+            },
+        )
+
+        with patch(
+            "wxpusher_notify.config.urlopen",
+            return_value=FakeCsvResponse("name,uid\nAlice,UID_1\nBob,UID_2\nAlice again,UID_1\n"),
+        ):
+            config = load_config(config_path)
+
+        self.assertEqual(config["wxpusher"]["uids"], ["UID_1", "UID_2"])
+
+    def test_load_config_rejects_invalid_remote_csv(self) -> None:
+        config_path = write_config(
+            self.workspace / "test_invalid_remote_uids",
+            {
+                "provider": "wxpusher",
+                "wxpusher": {
+                    "app_token": "AT_test",
+                    "uids": ["UID_fallback"],
+                    "uids_csv_url": "https://example.test/uids.csv",
+                },
+            },
+        )
+
+        with patch(
+            "wxpusher_notify.config.urlopen",
+            return_value=FakeCsvResponse("name,uid\nAlice,not-a-uid\n"),
+        ):
+            with self.assertRaises(ConfigError):
+                load_config(config_path)
 
     def test_send_notification_returns_error_on_api_failure(self) -> None:
         config_path = write_config(

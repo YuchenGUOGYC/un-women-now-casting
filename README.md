@@ -176,6 +176,19 @@ Test notification:
 python wxpusher/send_notification.py --title "Weather Alert" --summary "Rain detected"
 ```
 
+To manage recipients from the public S3 CSV, set these values inside the
+`wxpusher` block:
+
+```json
+"uids_csv_url": "https://china-data-team-bucket-public.s3.cn-northwest-1.amazonaws.com.cn/uid_template.csv",
+"uids_source_mode": "replace"
+```
+
+The CSV must be UTF-8 and contain a `uid` column; `name,uid` is the recommended
+schema. Before every send, the client downloads and validates the CSV, removes
+duplicate UIDs, and uses it as the authoritative recipient list. A download or
+validation failure stops the notification instead of sending to a stale list.
+
 ## Cron
 
 The download scripts can trigger alert scripts after a successful batch run with:

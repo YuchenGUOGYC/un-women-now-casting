@@ -6,6 +6,8 @@
     "uids": [
       "UID_HDuVh3z5yQn3RYX0qhqiD82WXVyD"
     ],
+    "uids_csv_url": "https://china-data-team-bucket-public.s3.cn-northwest-1.amazonaws.com.cn/uid_template.csv",
+    "uids_source_mode": "replace",
     "content_type": 1
   }
 }
