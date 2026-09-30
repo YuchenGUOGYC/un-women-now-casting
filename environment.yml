@@ -9,6 +9,7 @@ dependencies:
   - openpyxl
   - pyyaml
   - pip:
+      - boto3
       - openmeteo-requests
       - requests-cache
       - retry-requests

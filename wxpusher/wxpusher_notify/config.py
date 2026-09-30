@@ -3,9 +3,11 @@ from __future__ import annotations
 import csv
 import io
 import json
+import tomllib
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import unquote, urlparse
 from urllib.request import Request, urlopen
 
 
@@ -13,16 +15,48 @@ class ConfigError(ValueError):
     """Raised when notification configuration is invalid."""
 
 
-def _load_uids_csv(url: str, timeout_seconds: float) -> list[str]:
-    request = Request(
-        url,
-        headers={"Cache-Control": "no-cache", "User-Agent": "un-women-now-casting/1.0"},
-    )
+def _download_s3_csv(url: str, hostname: str) -> bytes:
+    bucket, separator, region_host = hostname.partition(".s3.")
+    if not separator or not region_host.endswith(".amazonaws.com.cn"):
+        raise ConfigError(f"Unsupported S3 UID CSV URL: {url}")
+    region = region_host.removesuffix(".amazonaws.com.cn")
+    key = unquote(urlparse(url).path.lstrip("/"))
+    if not bucket or not key:
+        raise ConfigError(f"Invalid S3 UID CSV URL: {url}")
+
+    # config.py lives in github/un-women-now-casting/wxpusher/wxpusher_notify.
+    secrets_path = Path(__file__).resolve().parents[3] / "uid_upload_secrets.toml"
     try:
-        with urlopen(request, timeout=timeout_seconds) as response:
-            payload = response.read()
-    except (HTTPError, URLError, TimeoutError) as exc:
-        raise ConfigError(f"Failed to download WxPusher UID CSV from {url}: {exc}") from exc
+        secrets = tomllib.loads(secrets_path.read_text(encoding="utf-8"))["aws_uid_upload"]
+        access_key = secrets["aws_access_key_id"]
+        secret_key = secrets["aws_secret_access_key"]
+    except (OSError, tomllib.TOMLDecodeError, KeyError, TypeError) as exc:
+        raise ConfigError(f"Cannot load AWS UID credentials from {secrets_path}: {exc}") from exc
+    if not isinstance(access_key, str) or not access_key.strip() or not isinstance(secret_key, str) or not secret_key.strip():
+        raise ConfigError(f"AWS UID credentials are empty in {secrets_path}")
+
+    try:
+        import boto3
+    except ImportError as exc:
+        raise ConfigError("Authenticated S3 UID downloads require boto3") from exc
+    try:
+        client = boto3.client(
+            "s3",
+            region_name=region,
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+        )
+        return client.get_object(Bucket=bucket, Key=key)["Body"].read()
+    except Exception as exc:
+        raise ConfigError(f"Failed to download WxPusher UID CSV from s3://{bucket}/{key}: {exc}") from exc
+
+
+def _load_uids_csv(url: str, timeout_seconds: float) -> list[str]:
+    hostname = urlparse(url).hostname or ""
+    if ".s3." in hostname and hostname.endswith(".amazonaws.com.cn"):
+        payload = _download_s3_csv(url, hostname)
+    else:
+        payload = _download_http_csv(url, timeout_seconds)
 
     try:
         text = payload.decode("utf-8-sig")
@@ -52,6 +86,18 @@ def _load_uids_csv(url: str, timeout_seconds: float) -> list[str]:
     if not uids:
         raise ConfigError("WxPusher UID CSV contains no recipients")
     return uids
+
+
+def _download_http_csv(url: str, timeout_seconds: float) -> bytes:
+    request = Request(
+        url,
+        headers={"Cache-Control": "no-cache", "User-Agent": "un-women-now-casting/1.0"},
+    )
+    try:
+        with urlopen(request, timeout=timeout_seconds) as response:
+            return response.read()
+    except (HTTPError, URLError, TimeoutError) as exc:
+        raise ConfigError(f"Failed to download WxPusher UID CSV from {url}: {exc}") from exc
 
 
 def _load_json(path: Path) -> dict[str, Any]:

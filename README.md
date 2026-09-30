@@ -176,7 +176,7 @@ Test notification:
 python wxpusher/send_notification.py --title "Weather Alert" --summary "Rain detected"
 ```
 
-To manage recipients from the public S3 CSV, set these values inside the
+To manage recipients from the S3 CSV, set these values inside the
 `wxpusher` block:
 
 ```json
@@ -185,7 +185,12 @@ To manage recipients from the public S3 CSV, set these values inside the
 ```
 
 The CSV must be UTF-8 and contain a `uid` column; `name,uid` is the recommended
-schema. Before every send, the client downloads and validates the CSV, removes
+schema. The S3 request is signed using `aws_uid_upload.aws_access_key_id` and
+`aws_uid_upload.aws_secret_access_key` from `../uid_upload_secrets.toml` relative
+to this repository. Keep that file outside Git. On the server, place it at
+`/home/ec2-user/rs_dataset/github/uid_upload_secrets.toml` and install the
+updated `environment.yml` dependencies (including `boto3`). Before every send,
+the client downloads and validates the CSV, removes
 duplicate UIDs, and uses it as the authoritative recipient list. A download or
 validation failure stops the notification instead of sending to a stale list.
 

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import io
 import sys
+import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -198,6 +200,33 @@ class WxPusherTests(unittest.TestCase):
         ):
             with self.assertRaises(ConfigError):
                 load_config(config_path)
+
+    def test_s3_csv_uses_relative_credentials_and_signed_request(self) -> None:
+        from wxpusher_notify.config import _download_s3_csv
+
+        captured = {}
+
+        def fake_client(service, **kwargs):
+            captured["service"] = service
+            captured["client_args"] = kwargs
+            return types.SimpleNamespace(get_object=lambda **request: (
+                captured.update(request=request) or {"Body": io.BytesIO(b"uid\nUID_1\n")}
+            ))
+
+        fake_boto3 = types.SimpleNamespace(client=fake_client)
+        with patch("wxpusher_notify.config.Path.read_text", return_value="unused"), patch(
+            "wxpusher_notify.config.tomllib.loads",
+            return_value={"aws_uid_upload": {"aws_access_key_id": "test-key", "aws_secret_access_key": "test-secret"}},
+        ), patch.dict(sys.modules, {"boto3": fake_boto3}):
+            payload = _download_s3_csv(
+                "https://bucket.s3.cn-northwest-1.amazonaws.com.cn/uid_template.csv",
+                "bucket.s3.cn-northwest-1.amazonaws.com.cn",
+            )
+
+        self.assertEqual(payload, b"uid\nUID_1\n")
+        self.assertEqual(captured["service"], "s3")
+        self.assertEqual(captured["request"], {"Bucket": "bucket", "Key": "uid_template.csv"})
+        self.assertEqual(captured["client_args"]["region_name"], "cn-northwest-1")
 
     def test_send_notification_returns_error_on_api_failure(self) -> None:
         config_path = write_config(
