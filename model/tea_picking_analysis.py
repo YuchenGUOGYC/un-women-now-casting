@@ -11,7 +11,7 @@ DEFAULT_INPUT_DIR = Path(__file__).resolve().parent / (
 )
 FILE_PATTERN = "Gulin_ERA5Land_GridPoints_Rectangle_*.csv"
 
-RAIN_THRESHOLD_MM = 0.1
+RAIN_THRESHOLD_MM = 0.5
 RAIN_LOOKBACK_HOURS = 12
 RH_THRESHOLD = 85
 CURRENT_SOLAR_THRESHOLD_WM2 = 80

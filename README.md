@@ -143,7 +143,7 @@ Useful tuning parameters:
 
 ```bash
 --rain-lookback-hours 12
---rain-threshold 0.1
+--rain-threshold 0.5
 --max-relative-humidity 85
 --current-solar-threshold 80
 --drying-solar-threshold 120

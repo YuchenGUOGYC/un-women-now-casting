@@ -30,8 +30,9 @@ from wxpusher.wxpusher_notify import ConfigError, send_notification
 
 BEIJING_TZ = ZoneInfo("Asia/Shanghai")
 FILENAME_COORD_PATTERN = re.compile(r"lat(?P<lat>[mp\d]+)_lon(?P<lon>[mp\d]+)")
+LANDMARKS_PATH = ROOT_DIR / "study area" / "study_area_region_landmarks.json"
 
-RAIN_THRESHOLD_MM = 0.1
+RAIN_THRESHOLD_MM = 0.5
 RAIN_LOOKBACK_HOURS = 12
 RH_THRESHOLD = 85.0
 CURRENT_SOLAR_THRESHOLD_WM2 = 80.0
@@ -516,10 +517,13 @@ def build_notification_message(summary: PickingDateSummary) -> str:
     if not summary.region_summaries:
         return "采茶建议尚未计算。"
 
-    # 推送只关注核心位置；“外围-*”分区仍参与计算，但不进入消息正文。
+    # 推送只关注茶林区域；外围与城镇区域仍参与计算，但不进入消息正文。
+    landmarks_by_region = json.loads(LANDMARKS_PATH.read_text(encoding="utf-8"))
     core_summaries = [
-        item for item in summary.region_summaries if not item.region_name.startswith("外围")
+        item for item in summary.region_summaries
+        if not item.region_name.startswith(("外围", "城镇区域"))
     ]
+    core_summaries.sort(key=lambda item: (not bool(landmarks_by_region.get(item.region_name)), item.region_name))
     if not core_summaries:
         return f"总结：{summary.target_date}未找到核心区域的采茶建议。"
 
@@ -535,11 +539,14 @@ def build_notification_message(summary: PickingDateSummary) -> str:
     sections = [overview]
     for item in core_summaries:
         windows = "、".join(item.suitable_windows) if item.suitable_windows else "无"
-        reason_text = "、".join(item.reasons[:2]) if item.reasons else "降雨、湿度和光照条件满足"
+        name = item.region_name
+        places = landmarks_by_region.get(name, [])
+        if places:
+            name += f"（具体地点：{'、'.join(places)}）"
         sections.append(
-            f"{item.region_name}，{item.picking_class}；适采{item.suitable_hour_count}小时；"
+            f"{name}，{item.picking_class}；适采{item.suitable_hour_count}小时；"
             f"建议时段：{windows}；预计雨量{item.total_rain_mm:.1f}毫米；"
-            f"平均湿度{format_optional(item.mean_relative_humidity)}%；说明：{reason_text}"
+            f"平均湿度{format_optional(item.mean_relative_humidity)}%"
         )
     return "\n\n".join(sections)
 

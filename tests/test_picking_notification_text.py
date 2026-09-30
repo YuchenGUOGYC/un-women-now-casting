@@ -19,6 +19,7 @@ def test_notification_uses_summary_detail_structure_and_excludes_outer_regions()
         suitable_regions=["茶林区域-东部", "外围-东部"], checked_files=64, matched_files=64,
         region_summaries=[
             region("外围-东部", "适宜采茶", True, 7, ["09:00-15:00"], 0.0, 70.0, ["降雨、湿度和光照条件满足"]),
+            region("城镇区域（南）", "适宜采茶", True, 7, ["09:00-15:00"], 0.0, 70.0, []),
             region("茶林区域-东部", "适宜采茶", True, 6, ["09:00-14:00"], 0.0, 75.0, ["降雨、湿度和光照条件满足"]),
             region("茶林区域-南部", "暂不适宜采茶", False, 0, [], 6.2, 92.7, ["降雨覆盖比例54%", "高湿覆盖比例73%"]),
         ],
@@ -26,14 +27,28 @@ def test_notification_uses_summary_detail_structure_and_excludes_outer_regions()
     message = build_notification_message(summary)
     assert message == (
         "总结：2026-09-18适宜采茶的核心区域：茶林区域-东部。\n\n"
-        "茶林区域-东部，适宜采茶；适采6小时；建议时段：09:00-14:00；"
-        "预计雨量0.0毫米；平均湿度75.0%；说明：降雨、湿度和光照条件满足\n\n"
+        "茶林区域-东部（具体地点：原林村村民委员会、金鱼溪、山丹坳、环岩、龙马（杨家厂）、小木槐），"
+        "适宜采茶；适采6小时；建议时段：09:00-14:00；"
+        "预计雨量0.0毫米；平均湿度75.0%\n\n"
         "茶林区域-南部，暂不适宜采茶；适采0小时；建议时段：无；"
-        "预计雨量6.2毫米；平均湿度92.7%；说明：降雨覆盖比例54%、高湿覆盖比例73%"
+        "预计雨量6.2毫米；平均湿度92.7%"
     )
     assert "外围-东部" not in message
+    assert "城镇区域（南）" not in message
 
 
 def test_notification_empty_state_matches_app_wording():
     summary = PickingDateSummary("2026-09-18", False, [], 0, 0, [])
     assert build_notification_message(summary) == "采茶建议尚未计算。"
+
+
+def test_named_tea_regions_appear_before_unnamed_regions():
+    summary = PickingDateSummary(
+        "2026-09-18", True, [], 64, 64,
+        [
+            region("茶林区域-南部", "适宜采茶", True, 6, ["09:00-14:00"], 0.0, 75.0, []),
+            region("茶林区域-东部", "适宜采茶", True, 6, ["09:00-14:00"], 0.0, 75.0, []),
+        ],
+    )
+    message = build_notification_message(summary)
+    assert message.index("茶林区域-东部（") < message.index("茶林区域-南部，")
