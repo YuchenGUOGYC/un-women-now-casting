@@ -175,6 +175,11 @@ def main() -> int:
                 title=args.title,
                 summary=notification_message,
                 config_path=args.wxpusher_config,
+                # Older EC2 configs only contain static UIDs. Read the managed
+                # recipient list unless the config specifies another CSV.
+                default_uids_csv_url=(
+                    "https://china-data-team-bucket-public.s3.cn-northwest-1.amazonaws.com.cn/uid_template.csv"
+                ),
             )
             result_payload["notification_sent"] = send_result.success
             result_payload["notification_result"] = {

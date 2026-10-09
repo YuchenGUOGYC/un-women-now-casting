@@ -124,7 +124,7 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return data
 
 
-def load_config(path: str | Path) -> dict[str, Any]:
+def load_config(path: str | Path, *, default_uids_csv_url: str | None = None) -> dict[str, Any]:
     config_path = Path(path)
     if not config_path.exists():
         raise ConfigError(f"Config file not found: {config_path}")
@@ -163,7 +163,7 @@ def load_config(path: str | Path) -> dict[str, Any]:
         raise ConfigError("Missing required config value: wxpusher.uids")
 
     uids = [uid.strip() for uid in uids]
-    uids_csv_url = wxpusher.get("uids_csv_url")
+    uids_csv_url = wxpusher.get("uids_csv_url", default_uids_csv_url)
     if uids_csv_url is not None:
         if not isinstance(uids_csv_url, str) or not uids_csv_url.strip():
             raise ConfigError("wxpusher.uids_csv_url must be a non-empty URL")

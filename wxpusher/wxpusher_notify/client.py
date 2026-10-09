@@ -61,11 +61,13 @@ def send_notification(
     title: str | None,
     summary: str,
     config_path: str = "wxpusher.config.json",
+    *,
+    default_uids_csv_url: str | None = None,
 ) -> SendResult:
     if not isinstance(summary, str) or not summary.strip():
         raise ValueError("summary must be a non-empty string")
 
-    config = load_config(config_path)
+    config = load_config(config_path, default_uids_csv_url=default_uids_csv_url)
     payload = _build_payload(config, title=title, summary=summary.strip())
     data = json.dumps(payload).encode("utf-8")
     request = Request(
